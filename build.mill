@@ -1,0 +1,15 @@
+package build
+import mill.*, scalalib.*
+
+object `package` extends ScalaModule {
+  def scalaVersion = "3.7.3"
+  def mvnDeps = Seq(
+    mvn"com.lihaoyi::upickle:4.3.0",
+    mvn"com.lihaoyi::pprint:0.9.0",
+  )
+
+  object test extends ScalaTests {
+    def mvnDeps = Seq(mvn"com.lihaoyi::utest:0.8.9")
+    def testFramework = "utest.runner.Framework"
+  }
+}
