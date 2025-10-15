@@ -1,0 +1,46 @@
+incarnation: scafi
+
+network-model:
+  type: ConnectWithinDistance
+  parameters: [ 5 ]
+
+_constants:
+  retentionTime: &retentionTime 25.0
+
+_pool: &program
+  - time-distribution: 1
+    type: Event
+    actions:
+      - type: RunScafiProgram
+        parameters: [ "it.unibo.llm.ScafiTestProgram", *retentionTime ]
+  - program: send
+
+# monitors:
+#   - type: SwingGUI
+#     parameters:
+#       graphics: effects/Gradient.json
+
+# launcher:
+#   parameters:
+#     batch: []
+#     autoStart: false
+
+environment:
+  type: Continuous2DEnvironment
+  parameters: []
+
+deployments:
+  - type: Point
+    parameters: [ -1, -1 ]
+    programs:
+      - *program
+    contents:
+      - molecule: source
+        concentration: true
+  - type: Grid
+    parameters: [ 0, 0, 3, 3, 1, 1 ]
+    programs:
+      - *program
+    contents:
+      - molecule: source
+        concentration: false

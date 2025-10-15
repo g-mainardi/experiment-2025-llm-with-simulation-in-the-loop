@@ -1,8 +1,13 @@
 package it.unibo.llm
 
-@main def main(): Unit = 
-  println("Hello, world!")
-  println("This is a placeholder for the main application logic.")
-  // Add your application logic here
-  // For example, you might want to initialize some components or start a server
-  println("Application has started successfully.")
+import it.unibo.alchemist.boundary.LoadAlchemist
+import it.unibo.alchemist.model.terminators.AfterTime
+import it.unibo.alchemist.model.times.DoubleTime
+
+object Main extends App {
+  val simulation = LoadAlchemist.from(getClass.getResource("/swarmSimulation.yml")).getDefault
+  simulation.getEnvironment.addTerminator(new AfterTime(new DoubleTime(100.0)))
+  simulation.play()
+  simulation.run()
+  simulation.getError.ifPresent(e => throw e)
+}
