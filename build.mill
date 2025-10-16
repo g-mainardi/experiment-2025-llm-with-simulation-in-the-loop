@@ -9,6 +9,9 @@ object `package` extends ScalaModule {
     mvn"it.unibo.alchemist:alchemist:42.3.7",
     mvn"it.unibo.alchemist:alchemist-incarnation-scafi:42.3.7",
     mvn"it.unibo.scafi::scafi-core:1.6.0",
+    mvn"io.modelcontextprotocol.sdk:mcp:0.14.1",
+    mvn"io.modelcontextprotocol.sdk:mcp-core:0.14.1",
+    mvn"io.modelcontextprotocol.sdk:mcp-json:0.14.1"
 //    mvn"it.unibo.alchemist:alchemist-swingui:42.3.7",
   )
 
