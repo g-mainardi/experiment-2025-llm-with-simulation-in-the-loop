@@ -1,7 +1,10 @@
 {
   "type": "object",
-  "id": "urn:jsonschema:Operation",
   "properties": {
-    "program": "string"
-  }
+    "program": {
+      "type": "string",
+      "description": "The Scala code to compile"
+    }
+  },
+  "required": ["program"]
 }

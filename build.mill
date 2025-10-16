@@ -25,7 +25,8 @@ object mcp_server extends Common {
     mvn"it.unibo.scafi::scafi-core:1.6.0",
     mvn"io.modelcontextprotocol.sdk:mcp:0.14.1",
     mvn"io.modelcontextprotocol.sdk:mcp-core:0.14.1",
-    mvn"io.modelcontextprotocol.sdk:mcp-json:0.14.1"
+    mvn"io.modelcontextprotocol.sdk:mcp-json:0.14.1",
+    mvn"org.slf4j:slf4j-simple:2.0.9",
   )
   
   def mainClass = Some("it.unibo.llm.mcp.server.ServerMain")
