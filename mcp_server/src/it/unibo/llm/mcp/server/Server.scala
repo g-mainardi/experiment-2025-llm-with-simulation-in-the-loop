@@ -5,6 +5,7 @@ import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper
 import io.modelcontextprotocol.server.{McpAsyncServerExchange, McpServer, McpServerFeatures}
 import io.modelcontextprotocol.server.transport.StdioServerTransportProvider
 import io.modelcontextprotocol.spec.McpSchema.{CallToolRequest, CallToolResult, ServerCapabilities, Tool}
+import it.unibo.llm.mcp.server.utils.ScafiTestUtils
 import reactor.core.publisher.Mono
 
 import scala.io.Source
@@ -30,12 +31,17 @@ class Server {
     null,
     handleCompilation,
   )
-  private val mcpServer = McpServer.async(transport)
-    .capabilities(capabilities)
-    .tools(toolSpecification)
-    .build()
 
   private def handleCompilation(server: McpAsyncServerExchange, request: CallToolRequest): Mono[CallToolResult] = {
-    Mono.just(new CallToolResult(List.empty.asJava, false, null, Map.empty[String, AnyRef].asJava))
+    val (hasErrors, errors) = ScafiTestUtils.validateWithErrors(request.arguments().get("program").toString)
+    Mono.just(new CallToolResult(if (!hasErrors) { "compilation success" } else { errors.mkString }, hasErrors))
+  }
+
+  def initialize(): Unit = {
+    McpServer.async(transport)
+      .capabilities(capabilities)
+      .tools(toolSpecification)
+      .build()
+    ()
   }
 }

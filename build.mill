@@ -20,6 +20,7 @@ trait Common extends ScalaModule {
 object mcp_server extends Common {
   
   def mvnDeps = Seq(
+    mvn"org.scala-lang:scala-compiler:${scalaVersion()}",
     mvn"it.unibo.alchemist:alchemist:42.3.7",
     mvn"it.unibo.alchemist:alchemist-incarnation-scafi:42.3.7",
     mvn"it.unibo.scafi::scafi-core:1.6.0",
