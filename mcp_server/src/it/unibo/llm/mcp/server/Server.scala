@@ -33,7 +33,7 @@ class Server {
   )
 
   private def handleCompilation(server: McpAsyncServerExchange, request: CallToolRequest): Mono[CallToolResult] = {
-    val (hasErrors, errors) = ScafiTestUtils.validateWithErrors(request.arguments().get("program").toString)
+    val (hasErrors, errors) = ScafiTestUtils.compileAndGetErrors(request.arguments().get("program").toString)
     Mono.just(new CallToolResult(if (!hasErrors) { "compilation success" } else { errors.mkString }, hasErrors))
   }
 

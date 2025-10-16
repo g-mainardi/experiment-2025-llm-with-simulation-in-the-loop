@@ -1,14 +1,11 @@
 package it.unibo.llm.mcp.server.utils
 
-import java.util.concurrent.Executors
-import javax.script.ScriptEngine
-
 import scala.tools.nsc.{Global, Settings}
 import scala.tools.nsc.reporters.StoreReporter
 import scala.reflect.internal.util.BatchSourceFile
 
 object ScafiTestUtils {
-  def validateWithErrors(code: String): (Boolean, List[String]) = {
+  def compileAndGetErrors(code: String): (Boolean, List[String]) = {
     val settings = new Settings()
     settings.usejavacp.value = true
 
