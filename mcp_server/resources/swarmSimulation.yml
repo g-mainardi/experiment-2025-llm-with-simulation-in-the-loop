@@ -12,7 +12,7 @@ _pool: &program
     type: Event
     actions:
       - type: RunScafiProgram
-        parameters: [ "it.unibo.llm.ScafiTestProgram", *retentionTime ]
+        parameters: [ "{{ }}", *retentionTime ]
   - program: send
 
 # monitors:
