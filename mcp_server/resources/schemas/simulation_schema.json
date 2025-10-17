@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "properties": {
+    "program": {
+      "type": "string",
+      "description": "The Scala code to compile"
+    },
+    "timeout": {
+      "type": "integer",
+      "description": "The maximum time (in seconds) to run the simulation",
+      "default": 60
+    }
+  },
+  "required": ["program"]
+}
