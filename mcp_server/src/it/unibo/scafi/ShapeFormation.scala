@@ -19,7 +19,6 @@ abstract class ShapeFormation() extends BaseFormation {
 
   implicit class InternalRichPoint3D(p: Point3D) {
     def magnitude: Double = p.distance(Point3D.Zero)
-
     def normalize: Point3D = {
       val m = p.magnitude
       if (m < 1e-9) { Point3D.Zero } else { Point3D(p.x / m, p.y / m, 0) }
@@ -31,49 +30,58 @@ abstract class ShapeFormation() extends BaseFormation {
     }
 
   def logic(): Actuation = {
-    val leaderSelected = sense[Int] ("leader")
-    val stabilityThreshold = sense[Double] ("stabilityThreshold")
-    val collisionArea = sense[Double] ("collisionArea")
-    val leader = mid () == leaderSelected
+    val leaderSelected = sense[Int]("leader")
+    val stabilityThreshold = sense[Double]("stabilityThreshold")
+    val collisionArea = sense[Double]("collisionArea")
+    val leader = isLeader(leaderSelected)
+    val directionTowardsLeader = computeDirectionTowardsLeader(leader)
+    val leaderOrientation = broadcast(leader, sense[Double]("orientation"))
+    val localGoal = computeLocalGoal(leader, leaderSelected, directionTowardsLeader)
+    val neighborMap = buildNeighborMap()
+    val avoidance = computeAvoidanceVector(neighborMap, collisionArea)
+    determineActuation(leader, localGoal, avoidance, leaderOrientation, stabilityThreshold)
+  }
+
+  private def computeLocalGoal(
+    leader: Boolean,
+    leaderSelected: Int,
+    directionTowardsLeader: (Double, Double)
+  ): (Double, Double) = {
     val potential = classicGradient(leader)
-    val directionTowardsLeader = G[(Double, Double)](
+    val collectInfo = C[Double, Map[Int, (Double, Double)]](
+      potential = potential,
+      acc = _ ++ _,
+      local = Map(mid() -> directionTowardsLeader),
+      Null = Map.empty
+    ).filter(_._1 != mid())
+    
+    val ordered = orderedNodes(collectInfo.toSet)
+    val suggestion = branch(leaderSelected == mid())(calculateSuggestion(ordered))(Map.empty)
+    broadcast(leader, suggestion).getOrElse(mid, (0.0, 0.0))
+  }
+
+  private def computeDirectionTowardsLeader(leader: Boolean): (Double, Double) = {
+    G[(Double, Double)](
       source = leader,
       field = (0.0, 0.0),
       acc = { case (x, y) => (x + distanceVector._1, y + distanceVector._2) },
       metric = nbrRange
     )
-    val leaderOrientation = broadcast(leader, sense[Double]("orientation"))
-    val collectInfo = C[Double, Map[Int, (Double, Double)]] (potential, _++ _, Map (mid () -> directionTowardsLeader), Map.empty)
-  .filter (_._1 != mid () )
-    val ordered = orderedNodes (collectInfo.toSet)
-    val suggestion = branch (leaderSelected == mid () ) (calculateSuggestion (ordered) ) (Map.empty)
-    val local = broadcast(leader, suggestion).getOrElse(mid, (0.0, 0.0) )
-    val distanceTowardGoal = Math.sqrt (local._1 * local._1 + local._2 * local._2)
-    val neighborMap = foldhoodPlus[Map[Int, (Double, Double)]](Map.empty)((a, b) => a ++ b)(Map (nbr (mid) -> distanceVector))
-      .map { case (id, nbrVector) => id -> Point3D (nbrVector._1, nbrVector._2, 0.0)}
-    // convert the orientation to a 2d vector
-    val (orientationLeaderX, orientationLeaderY) = (- math.sin (leaderOrientation), math.cos (leaderOrientation) )
-    // Aggregate repulsion from all neighbors within collisionRange (inverse-square weighting)
-    val repulsionSum = computeRepulsionSum (neighborMap, collisionArea)
-    val avoidance = if(repulsionSum.magnitude > maxRepulsion) {
+  }
+
+  def calculateSuggestion(ordered: List[(Int, (Double, Double))]): Map[Int, (Double, Double)]
+
+  protected def orderedNodes(nodes: Set[(Int, (Double, Double))]): List[(Int, (Double, Double))] =
+    nodes.filter(_._1 != mid()).toList.sortBy(_._1)
+
+  private def computeAvoidanceVector(neighborMap: Map[Int, Point3D], collisionArea: Double): Point3D = {
+    val repulsionSum = computeRepulsionSum(neighborMap, collisionArea)
+    if (repulsionSum.magnitude > maxRepulsion) {
       repulsionSum.normalize * maxRepulsion
     } else {
       repulsionSum
     }
-    val resultingVector = ((Point3D (local._1, local._2, 0) ) + avoidance).normalize
-    val res = if (distanceTowardGoal < stabilityThreshold) {
-      if (leader) {
-        NoOp
-      } else {
-        computeGoalConsideringAvoidance((orientationLeaderX, orientationLeaderY), avoidance)
-      }
-    } else {
-      Forward((resultingVector.x, resultingVector.y) )
-    }
-    res
   }
-  protected def orderedNodes(nodes: Set[(Int, (Double, Double))]): List[(Int, (Double, Double))] =
-    nodes.filter(_._1 != mid()).toList.sortBy(_._1)
 
   private def computeRepulsionSum(neighborMap: Map[Int, Point3D], collisionArea: Double): Point3D =
     neighborMap.values
@@ -88,6 +96,40 @@ abstract class ShapeFormation() extends BaseFormation {
         }
       }.foldLeft(Point3D.Zero)(_ + _)
 
+  private def buildNeighborMap(): Map[Int, Point3D] = {
+    foldhoodPlus[Map[Int, (Double, Double)]](Map.empty)((a, b) => a ++ b)(Map(nbr(mid) -> distanceVector))
+      .map { case (id, nbrVector) => id -> Point3D(nbrVector._1, nbrVector._2, 0.0) }
+  }
+
+  private def determineActuation(
+    leader: Boolean,
+    localGoal: (Double, Double),
+    avoidance: Point3D,
+    leaderOrientation: Double,
+    stabilityThreshold: Double
+  ): Actuation = {
+    val distanceTowardGoal = calculateDistance(localGoal)
+    val orientationVector = convertOrientationToVector(leaderOrientation)
+    if (distanceTowardGoal < stabilityThreshold) {
+      handleStableState(leader, orientationVector, avoidance)
+    } else {
+      handleMovementState(localGoal, avoidance)
+    }
+  }
+
+  private def handleStableState(leader: Boolean, orientationVector: (Double, Double), avoidance: Point3D): Actuation = {
+    if (leader) {
+      NoOp
+    } else {
+      computeGoalConsideringAvoidance(orientationVector, avoidance)
+    }
+  }
+
+  private def handleMovementState(localGoal: (Double, Double), avoidance: Point3D): Actuation = {
+    val resultingVector = (Point3D(localGoal._1, localGoal._2, 0) + avoidance).normalize
+    Forward((resultingVector.x, resultingVector.y))
+  }
+
   private def computeGoalConsideringAvoidance(leaderOrientation: (Double, Double), avoidance: Point3D): Actuation =
     if(avoidance.magnitude > 0.01) {
       val combinedVector = (Point3D(leaderOrientation._1, leaderOrientation._2, 0) + avoidance).normalize
@@ -96,5 +138,13 @@ abstract class ShapeFormation() extends BaseFormation {
       Rotation(leaderOrientation._1, leaderOrientation._2)
     }
 
-  def calculateSuggestion(ordered: List[(Int, (Double, Double))]): Map[Int, (Double, Double)]
+  // Utility methods
+  private def isLeader(leaderSelected: Int): Boolean = 
+    mid() == leaderSelected
+
+  private def calculateDistance(goal: (Double, Double)): Double = 
+    Math.sqrt(goal._1 * goal._1 + goal._2 * goal._2)
+
+  private def convertOrientationToVector(orientation: Double): (Double, Double) = 
+    (-math.sin(orientation), math.cos(orientation))
 }
