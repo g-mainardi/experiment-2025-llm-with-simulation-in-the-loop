@@ -1,5 +1,7 @@
 package it.unibo.scafi
 
+import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist.{AggregateProgram, BlockC, BlockG, StandardSensors}
+
 
 trait BaseFormation extends AggregateProgram with StandardSensors with BlockG with BlockC  {
   def distanceVector: (Double, Double) = nbrvar(NBR_VECTOR)
