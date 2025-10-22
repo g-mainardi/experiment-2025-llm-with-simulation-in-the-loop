@@ -12,35 +12,44 @@ _pool: &program
     type: Event
     actions:
       - type: RunScafiProgram
-        parameters: [ "{{ }}", *retentionTime ]
+        parameters: [ "it.unibo.scafi.CircleFormation", *retentionTime ]
   - program: send
+_move: &move
+  - time-distribution: 1
+    type: Event
+    actions:
+      - type: DifferentialRobotMovement
+        parameters: [ "actuation", 0.0001, 0.5 ]
 
-# monitors:
-#   - type: SwingGUI
-#     parameters:
-#       graphics: effects/Gradient.json
+monitors:
+ - type: SwingGUI
+   parameters:
+     graphics: effects/simulation.json
 
-# launcher:
-#   parameters:
-#     batch: []
-#     autoStart: false
+launcher:
+ parameters:
+   batch: []
+   autoStart: false
 
 environment:
   type: Continuous2DEnvironment
   parameters: []
 
 deployments:
-  - type: Point
-    parameters: [ -1, -1 ]
-    programs:
-      - *program
-    contents:
-      - molecule: source
-        concentration: true
   - type: Grid
-    parameters: [ 0, 0, 3, 3, 1, 1 ]
+    parameters: [ 0, 0, 4, 4, 1, 1 ]
     programs:
       - *program
+      - *move
     contents:
       - molecule: source
         concentration: false
+      - molecule: leader
+        concentration: 1
+      - molecule: stabilityThreshold
+        concentration: 0.1
+      - molecule: collisionArea
+        concentration: 0.2
+    properties:
+      - type: DirectionalRobotProperty
+        parameters: [ 0, 0.1 ]

@@ -22,6 +22,11 @@ object mcp_server extends Common {
   def mvnDeps = Seq(
     mvn"org.scala-lang:scala-compiler:${scalaVersion()}",
     mvn"it.unibo.alchemist:alchemist:42.3.7",
+    mvn"it.unibo.alchemist:alchemist-swingui:42.3.7",
+    mvn"it.unibo.alchemist:alchemist-maps:42.3.7",
+    mvn"it.unibo.alchemist:alchemist-ui-tooling:42.3.7",
+    mvn"org.danilopianini:javalib:5.0.0",
+    mvn"com.miglayout:miglayout-swing:5.0",
     mvn"it.unibo.alchemist:alchemist-incarnation-scafi:42.3.7",
     mvn"it.unibo.scafi::scafi-core:1.6.0",
     mvn"io.modelcontextprotocol.sdk:mcp:0.14.1",
