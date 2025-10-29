@@ -12,19 +12,19 @@ _pool: &program
     type: Event
     actions:
       - type: RunScafiProgram
-        parameters: [ "{{ }}", *retentionTime ]
+        parameters: [ "it.unibo.scafi.CircleFormation", *retentionTime ]
   - program: send
 _move: &move
   - time-distribution: 1
     type: Event
     actions:
       - type: DifferentialRobotMovement
-        parameters: [ "actuation", 0.0015, 0.5 ]
+        parameters: [ "actuation", 0.0001, 0.5 ]
 
-#monitors:
-# - type: SwingGUI
-#   parameters:
-#     graphics: effects/simulation.json
+monitors:
+ - type: SwingGUI
+   parameters:
+     graphics: effects/simulation.json
 
 launcher:
  parameters:
@@ -53,13 +53,3 @@ deployments:
     properties:
       - type: DirectionalRobotProperty
         parameters: [ 0, 0.1 ]
-
-export:
-  - type: CSVExporter
-    parameters:
-      fileNameRoot: "experiment"
-      interval: 330
-      exportPath: "{{EXPORT_DIR}}"
-    data:
-      - time
-      - type: NodesPositions

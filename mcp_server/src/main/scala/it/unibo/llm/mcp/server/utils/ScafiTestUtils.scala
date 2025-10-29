@@ -1,12 +1,13 @@
 package it.unibo.llm.mcp.server.utils
 
+import com.github.tototoshi.csv.{CSVReader, DefaultCSVFormat}
 import it.unibo.alchemist.boundary.LoadAlchemist
 import it.unibo.alchemist.model.terminators.AfterTime
 import it.unibo.alchemist.model.times.DoubleTime
 
 import java.io.File
 import java.net.URLClassLoader
-import java.nio.file.Files
+import java.nio.file.{Files, Path}
 import scala.concurrent.duration.Duration
 import scala.io.Source
 import scala.jdk.OptionConverters.RichOptional
@@ -15,6 +16,8 @@ import scala.tools.nsc.reporters.StoreReporter
 import scala.tools.nsc.{Global, Settings}
 
 object ScafiTestUtils {
+
+  private val logger = org.slf4j.LoggerFactory.getLogger(this.getClass)
 
   def compileAndGetErrors(code: String): (Boolean, List[String]) = {
     val tempDir = Files.createTempDirectory("scafi-compile-")
@@ -75,15 +78,63 @@ object ScafiTestUtils {
 
       val alchemistLoader = LoadAlchemist.from(simulationFile.toFile)
       val simulation = alchemistLoader.getDefault
-      simulation.getEnvironment.addTerminator(new AfterTime(new DoubleTime(1000.0)))
+      simulation.getEnvironment.addTerminator(new AfterTime(new DoubleTime(3000.0)))
       simulation.play()
       simulation.run()
+
+      val positions = loadCsvFromSimulation(exportDir)
+      logger.info(s"Simulation completed. Loaded positions for ${positions.size} timestamps.")
+      logger.debug(s"Positions data: $positions")
+      plotNodePositions(positions, exportDir)
+
       val containErrors = simulation.getError.isPresent
       (containErrors, simulation.getError.toScala.toList.map(e => s"Simulation error: ${e.getMessage}"))
     } finally {
       Thread.currentThread.setContextClassLoader(parent)
       loader.close()
     }
+  }
+
+  implicit object AlchemistFormat extends DefaultCSVFormat {
+    override val delimiter: Char = ' '
+  }
+
+  private def loadCsvFromSimulation(exportDir: Path): NodePosition.TimeStampedNodesPositions = {
+    val csvFile = exportDir.resolve("experiment.csv")
+    val sanitizedContent = Files.readString(csvFile)
+      .linesIterator
+      .filterNot(_.startsWith("#"))
+      .mkString("\n")
+    val sanitizedFile = Files.writeString(csvFile, sanitizedContent)
+    val reader = CSVReader.open(sanitizedFile.toFile)
+    reader.iterator.map { row =>
+      val time = row.head.toDouble
+      val position = row.tail.grouped(2).zipWithIndex.map {
+        case (List(x, y), index) => index.toString -> NodePosition(x.toDouble, y.toDouble)
+      }.toMap
+      time -> position
+    }.toMap
+  }
+
+  private def plotNodePositions(positions: NodePosition.TimeStampedNodesPositions, outputFile: Path): Unit = {
+    import org.nspl._
+    import org.nspl.awtrenderer._
+    val plots = positions.toSeq.sortBy(_._1).map {
+      case (time, nodePosition) =>
+        val data = nodePosition.map { case (_, position) => (position.x, position.y) }.toSeq
+        val minX = data.map(_._1).min
+        val maxX = data.map(_._1).max
+        val minY = data.map(_._2).min
+        val maxY = data.map(_._2).max
+        xyplot(data)(par
+          .withMain("Node Positions at time " + time)
+          .xlim(Some((minX - 0.5d) -> (maxX + 0.5d)))
+          .ylim(Some((minY - 0.5d) -> (maxY + 0.5d)))
+        )
+    }
+    val plot = sequence(plots, TableLayout(3))
+    val plotFile = outputFile.resolve("node_positions.png").toFile
+    pngToFile(plotFile, plot.build, width = 1000)
   }
 
   private def compileSources(settings: Settings, sources: List[BatchSourceFile]): (Boolean, List[String]) = {
