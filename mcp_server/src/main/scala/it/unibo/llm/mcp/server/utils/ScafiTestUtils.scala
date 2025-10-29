@@ -10,9 +10,9 @@ import java.nio.file.Files
 import scala.concurrent.duration.Duration
 import scala.io.Source
 import scala.jdk.OptionConverters.RichOptional
-import scala.tools.nsc.{Global, Settings}
-import scala.tools.nsc.reporters.StoreReporter
 import scala.reflect.internal.util.BatchSourceFile
+import scala.tools.nsc.reporters.StoreReporter
+import scala.tools.nsc.{Global, Settings}
 
 object ScafiTestUtils {
 

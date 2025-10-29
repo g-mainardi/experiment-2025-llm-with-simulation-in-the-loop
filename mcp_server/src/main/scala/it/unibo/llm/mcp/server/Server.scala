@@ -2,8 +2,8 @@ package it.unibo.llm.mcp.server
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper
-import io.modelcontextprotocol.server.{McpAsyncServerExchange, McpServer, McpServerFeatures}
 import io.modelcontextprotocol.server.transport.StdioServerTransportProvider
+import io.modelcontextprotocol.server.{McpAsyncServerExchange, McpServer, McpServerFeatures}
 import io.modelcontextprotocol.spec.McpSchema.{CallToolRequest, CallToolResult, ServerCapabilities, Tool}
 import it.unibo.llm.mcp.server.utils.ScafiTestUtils
 import reactor.core.publisher.Mono

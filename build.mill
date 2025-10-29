@@ -1,33 +1,20 @@
 package build
 import mill.*, scalalib.*
 
-val scala2Version = "2.13.12"
+val scala2Version = "2.13.17"
 
-trait Common extends ScalaModule {
+trait Common extends SbtModule {
   def scalaVersion = scala2Version
-  def mvnDeps = Seq(
-    mvn"com.lihaoyi::upickle:4.3.0",
-    mvn"com.lihaoyi::pprint:0.9.0",
-//    mvn"it.unibo.alchemist:alchemist-swingui:42.3.7",
-  )
-
-  object test extends ScalaTests {
-    def mvnDeps = Seq(mvn"com.lihaoyi::utest:0.8.9")
-    def testFramework = "utest.runner.Framework"
-  }
 }
 
 object mcp_server extends Common {
-  
   def mvnDeps = Seq(
+    mvn"com.google.guava:guava:33.5.0-jre",
     mvn"org.scala-lang:scala-compiler:${scalaVersion()}",
-    mvn"it.unibo.alchemist:alchemist:42.3.7",
-    mvn"it.unibo.alchemist:alchemist-swingui:42.3.7",
-    mvn"it.unibo.alchemist:alchemist-maps:42.3.7",
-    mvn"it.unibo.alchemist:alchemist-ui-tooling:42.3.7",
-    mvn"org.danilopianini:javalib:5.0.0",
-    mvn"com.miglayout:miglayout-swing:5.0",
-    mvn"it.unibo.alchemist:alchemist-incarnation-scafi:42.3.7",
+    mvn"it.unibo.alchemist:alchemist:42.3.7".excludeName("guava"),
+    mvn"it.unibo.alchemist:alchemist-swingui:42.3.7".excludeName("guava"),
+    mvn"it.unibo.alchemist:alchemist-maps:42.3.7".excludeName("guava"),
+    mvn"it.unibo.alchemist:alchemist-incarnation-scafi:42.3.7".excludeName("guava"),
     mvn"it.unibo.scafi::scafi-core:1.6.0",
     mvn"io.modelcontextprotocol.sdk:mcp:0.14.1",
     mvn"io.modelcontextprotocol.sdk:mcp-core:0.14.1",
@@ -36,5 +23,4 @@ object mcp_server extends Common {
   )
   
   def mainClass = Some("it.unibo.llm.mcp.server.ServerMain")
-  def prependShellScript = ""
 }
