@@ -8,6 +8,7 @@ import it.unibo.alchemist.model.times.DoubleTime
 import java.io.File
 import java.net.URLClassLoader
 import java.nio.file.{Files, Path}
+import java.util.Base64
 import scala.concurrent.duration.Duration
 import scala.io.Source
 import scala.jdk.OptionConverters.RichOptional
@@ -29,7 +30,7 @@ object ScafiTestUtils {
     compileSources(settings, List(sourceFile))
   }
 
-  def simulateProgram(program: String, timeout: Duration): (Boolean, List[String]) = {
+  def simulateProgram(program: String, timeout: Duration): (Boolean, List[String], Option[String]) = {
     val tempDir = Files.createTempDirectory("scafi-simulate-")
 
     val packageRegex = """(?m)^\s*package\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)""".r
@@ -37,7 +38,7 @@ object ScafiTestUtils {
 
     val packageIfAny = packageRegex.findFirstMatchIn(program).map(_.group(1)).getOrElse("")
     val className = classNameRegex.findFirstMatchIn(program).map(_.group(1)).getOrElse(
-      return (true, List("Simulation error: Could not find class definition in the provided code:\n\n" + program))
+      return (true, List("Simulation error: Could not find class definition in the provided code:\n\n" + program), None)
     )
     val fqnClass = if (packageIfAny.nonEmpty) s"$packageIfAny.$className" else className
 
@@ -58,7 +59,7 @@ object ScafiTestUtils {
 
     val batch = new BatchSourceFile(sourceFile.toString, program)
     val (hasErrors, errors) = compileSources(settings, List(batch))
-    if (hasErrors) return (true, errors)
+    if (hasErrors) return (true, errors, None)
 
     val urls = Array(tempDir.toUri.toURL)
     val parent = Thread.currentThread.getContextClassLoader
@@ -85,10 +86,10 @@ object ScafiTestUtils {
       val positions = loadCsvFromSimulation(exportDir)
       logger.info(s"Simulation completed. Loaded positions for ${positions.size} timestamps.")
       logger.debug(s"Positions data: $positions")
-      plotNodePositions(positions, exportDir)
+      val pngBase64 = plotNodePositions(positions, exportDir)
 
       val containErrors = simulation.getError.isPresent
-      (containErrors, simulation.getError.toScala.toList.map(e => s"Simulation error: ${e.getMessage}"))
+      (containErrors, simulation.getError.toScala.toList.map(e => s"Simulation error: ${e.getMessage}"), Some(pngBase64))
     } finally {
       Thread.currentThread.setContextClassLoader(parent)
       loader.close()
@@ -116,7 +117,7 @@ object ScafiTestUtils {
     }.toMap
   }
 
-  private def plotNodePositions(positions: NodePosition.TimeStampedNodesPositions, outputFile: Path): Unit = {
+  private def plotNodePositions(positions: NodePosition.TimeStampedNodesPositions, outputFile: Path): String = {
     import org.nspl._
     import org.nspl.awtrenderer._
     val plots = positions.toSeq.sortBy(_._1).map {
@@ -135,6 +136,8 @@ object ScafiTestUtils {
     val plot = sequence(plots, TableLayout(3))
     val plotFile = outputFile.resolve("node_positions.png").toFile
     pngToFile(plotFile, plot.build, width = 1000)
+    val byteArray = renderToByteArray(plot.build, width = 1000)
+    Base64.getEncoder.encodeToString(byteArray)
   }
 
   private def compileSources(settings: Settings, sources: List[BatchSourceFile]): (Boolean, List[String]) = {

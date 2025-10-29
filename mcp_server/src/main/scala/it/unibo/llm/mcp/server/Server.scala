@@ -4,12 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper
 import io.modelcontextprotocol.server.transport.StdioServerTransportProvider
 import io.modelcontextprotocol.server.{McpAsyncServerExchange, McpServer, McpServerFeatures}
-import io.modelcontextprotocol.spec.McpSchema.{CallToolRequest, CallToolResult, ServerCapabilities, Tool}
+import io.modelcontextprotocol.spec.McpSchema.{Annotations, CallToolRequest, CallToolResult, Content, ImageContent, Role, ServerCapabilities, Tool}
 import it.unibo.llm.mcp.server.utils.ScafiTestUtils
 import reactor.core.publisher.Mono
 
 import scala.concurrent.duration.Duration
 import scala.io.Source
+import scala.jdk.CollectionConverters._
 
 class Server {
   private val mapper = new JacksonMcpJsonMapper(new ObjectMapper())
@@ -54,8 +55,16 @@ class Server {
     val durationTimeout = try Duration(s"${timeout}s") catch {
       case _: NumberFormatException => return Mono.just(new CallToolResult(s"Invalid timeout format: $timeout", true))
     }
-    val (hasErrors, errors) = ScafiTestUtils.simulateProgram(program, durationTimeout)
-    Mono.just(new CallToolResult(if (!hasErrors) { "simulation success" } else { errors.mkString("\n") }, hasErrors))
+
+    val (hasErrors, errors, imageBase64) = ScafiTestUtils.simulateProgram(program, durationTimeout)
+    if (hasErrors) {
+      Mono.error(new IllegalStateException(errors.mkString("\n")))
+    } else {
+      val annotations = new Annotations(List(Role.USER).asJava, 1)
+      val image = new ImageContent(annotations, imageBase64.get, "image/png")
+      val res = new CallToolResult(List[Content](image).asJava, false, null, Map.empty[String, AnyRef].asJava)
+      Mono.just(res)
+    }
   }
 
   def initialize(): Unit = {
