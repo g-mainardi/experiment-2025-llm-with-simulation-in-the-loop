@@ -6,14 +6,6 @@ import it.unibo.scafi.space.Point3D
 import it.unibo.scafi.space.optimization.RichPoint3D
 
 
-sealed trait Actuation
-object Actuation {
-  case class Rotation(rotationVector: (Double, Double)) extends Actuation
-  case class Forward(vector: (Double, Double)) extends Actuation
-  case object NoOp extends Actuation
-  case object Stop extends Actuation
-}
-
 abstract class ShapeFormation() extends BaseFormation {
   private val repulsionStrength = 0.6
   private val maxRepulsion = 2
@@ -36,7 +28,7 @@ abstract class ShapeFormation() extends BaseFormation {
     val collisionArea = sense[Double]("collisionArea")
     val leader = isLeader(leaderSelected)
     val directionTowardsLeader = computeDirectionTowardsLeader(leader)
-    val property = alchemistEnvironment.getNodeByID(mid).asProperty[DirectionalRobotProperty[Any]](classOf[DirectionalRobotProperty[Any]])
+    val property = alchemistEnvironment.getNodeByID(mid()).asProperty[DirectionalRobotProperty[Any]](classOf[DirectionalRobotProperty[Any]])
     val leaderOrientation = broadcast(leader, property.getAngle)
     val localGoal = computeLocalGoal(leader, leaderSelected, directionTowardsLeader)
     val neighborMap = buildNeighborMap()
@@ -44,7 +36,7 @@ abstract class ShapeFormation() extends BaseFormation {
     val result = determineActuation(leader, localGoal, avoidance, leaderOrientation, stabilityThreshold)
     node.put("actuation", result)
     node.put("direction", Array(property.orientation._1, property.orientation._2))
-    node.put("mid", mid)
+    node.put("mid", mid())
 
     result
   }
@@ -64,7 +56,7 @@ abstract class ShapeFormation() extends BaseFormation {
     
     val ordered = orderedNodes(collectInfo.toSet)
     val suggestion = branch(leaderSelected == mid())(calculateSuggestion(ordered))(Map.empty)
-    broadcast(leader, suggestion).getOrElse(mid, (0.0, 0.0))
+    broadcast(leader, suggestion).getOrElse(mid(), (0.0, 0.0))
   }
 
   private def computeDirectionTowardsLeader(leader: Boolean): (Double, Double) = {
@@ -104,7 +96,7 @@ abstract class ShapeFormation() extends BaseFormation {
       }.foldLeft(Point3D.Zero)(_ + _)
 
   private def buildNeighborMap(): Map[Int, Point3D] = {
-    foldhoodPlus[Map[Int, (Double, Double)]](Map.empty)((a, b) => a ++ b)(Map(nbr(mid) -> distanceVector))
+    foldhoodPlus[Map[Int, (Double, Double)]](Map.empty)((a, b) => a ++ b)(Map(nbr(mid()) -> distanceVector))
       .map { case (id, nbrVector) => id -> Point3D(nbrVector._1, nbrVector._2, 0.0) }
   }
 
@@ -156,203 +148,11 @@ abstract class ShapeFormation() extends BaseFormation {
     (-math.sin(orientation), math.cos(orientation))
 }
 
-class LineFormation extends ShapeFormation() {
-  override def calculateSuggestion(ordered: List[(Int, (Double, Double))]): Map[Int, (Double, Double)] = {
-    val (leftSlots, rightSlots) = ordered.indices.splitAt(ordered.size / 2)
-    var devicesAvailable = ordered
-    val leftCandidates = leftSlots
-      .map { index =>
-        val candidate = devicesAvailable
-          .map {
-            case (id, (xPos, yPos)) =>
-              val newPos @ (newXpos, newYpos) = ((-(index + 1) * distanceThreshold) + xPos, yPos)
-              val modulo = math.sqrt((newXpos * newXpos) + (newYpos * newYpos))
-              (id, modulo, newPos)
-          }
-          .minBy(_._2)
-        devicesAvailable = devicesAvailable.filterNot(_._1 == candidate._1)
-        candidate._1 -> candidate._3
-      }
-      .toMap
-    val rightCandidates = rightSlots
-      .map(i => i - rightSlots.min)
-      .map { index =>
-        val candidate = devicesAvailable
-          .map {
-            case (id, (xPos, yPos)) =>
-              val newPos @ (newXpos, newYpos) = (((index + 1) * distanceThreshold) + xPos, yPos)
-              val modulo = math.sqrt((newXpos * newXpos) + (newYpos * newYpos))
-              (id, modulo, newPos)
-          }
-          .minBy(_._2)
-        devicesAvailable = devicesAvailable.filterNot(_._1 == candidate._1)
-        candidate._1 -> candidate._3
-      }
-      .toMap
-    leftCandidates ++ rightCandidates
-  }
 
-  private def distanceThreshold: Double = {
-    node.getOrElse(LineFormation.INTER_DISTANCE_SENSING, LineFormation.DEFAULTS(LineFormation.INTER_DISTANCE_SENSING))
-  }
-}
 
-object LineFormation {
-  val INTER_DISTANCE_SENSING = "interDistanceLine"
-  val DEFAULTS = Map(INTER_DISTANCE_SENSING -> 0.4)
-}
 
-class CircleFormation extends ShapeFormation() {
-  override def calculateSuggestion(ordered: List[(Int, (Double, Double))]): Map[Int, (Double, Double)] = {
-    val division = (math.Pi * 2) / ordered.size
-    val precomputedAngels = ordered.indices.map(i => division * (i + 1))
-    var availableDevices = ordered
-    precomputedAngels
-      .map { angle =>
-        val candidate = availableDevices
-          .map {
-            case (id, (xPos, yPos)) =>
-              val newPos @ (newXpos, newYpos) = (math.sin(angle) * radius + xPos, math.cos(angle) * radius + yPos)
-              (id, math.sqrt((newXpos * newXpos) + (newYpos * newYpos)), newPos)
-          }
-          .minBy(_._2)
-        availableDevices = removeDeviceFromId(candidate._1, availableDevices)
-        candidate._1 -> candidate._3
-      }
-      .toMap
-  }
 
-  private def radius: Double = node.getOrElse(CircleFormation.RADIUS_SENSING, CircleFormation.DEFAULTS(CircleFormation.RADIUS_SENSING))
 
-  private def removeDeviceFromId(id: Int, devices: List[(Int, (Double, Double))]): List[(Int, (Double, Double))] = {
-    devices.filterNot { case (currentId, _) =>
-      currentId == id
-    }
-  }
 
-  private def nearestFromPoint(point: (Double, Double), devices: List[(Int, (Double, Double))]): Int = {
-    devices
-      .map {
-        case (id, (xPos, yPos)) =>
-          val xDelta = math.abs(point._1 - xPos)
-          val yDelta = math.abs(point._2 - yPos)
-          id -> math.sqrt((xDelta * xDelta) + (yDelta * yDelta))
-      }
-      .minBy(_._1)
-      ._1
-  }
-}
 
-object CircleFormation {
-  val RADIUS_SENSING: String = "radius"
-  val DEFAULTS: Map[String, Double] = Map(RADIUS_SENSING -> 0.6)
-}
 
-class SquareFormation extends ShapeFormation() {
-  override def calculateSuggestion(ordered: List[(Int, (Double, Double))]): Map[Int, (Double, Double)] = {
-    if (ordered.isEmpty) return Map.empty
-    val n = ordered.size
-    // side length (number of points per side) to accommodate all nodes + leader
-    val side = math.ceil(math.sqrt(n + 1)).toInt
-    // Generate grid coordinates excluding leader position (0,0)
-    val gridCoords = (for {
-      y <- 0 until side
-      x <- 0 until side if !(x == 0 && y == 0)
-    } yield (x, y)).take(n)
-    var available = ordered
-    gridCoords
-      .map { case (gx, gy) =>
-        val candidate = available
-          .map {
-            case (id, (xPos, yPos)) =>
-              // target absolute vector from leader for this grid cell
-              val targetX = gx * distanceBetweenNodes
-              val targetY = gy * distanceBetweenNodes
-              // Following existing pattern, combine with current vector (acts like bias towards current pos)
-              val newPos @ (newXpos, newYpos) = (targetX + xPos, targetY + yPos)
-              (id, math.sqrt(newXpos * newXpos + newYpos * newYpos), newPos)
-          }
-          .minBy(_._2)
-        available = available.filterNot(_._1 == candidate._1)
-        candidate._1 -> candidate._3
-      }
-      .toMap
-  }
-
-  private def distanceBetweenNodes: Double = sense(SquareFormation.INTER_DISTANCE_SENSING)
-}
-
-object SquareFormation {
-  val INTER_DISTANCE_SENSING = "interDistanceSquare"
-  val DEFAULTS: Map[String, Double] = Map(INTER_DISTANCE_SENSING -> 0.4)
-}
-
-class VFormation extends ShapeFormation() {
-  // armAngle: angle (in radians) of each arm relative to the x-axis (default suggestion: math.Pi/4)
-  override def calculateSuggestion(ordered: List[(Int, (Double, Double))]): Map[Int, (Double, Double)] = {
-    if (ordered.isEmpty) return Map.empty
-    val n = ordered.size
-    val leftCount = n / 2
-    val rightCount = n - leftCount
-    val dx = distanceBetweenNodes * math.cos(armAngle)
-    val dy = distanceBetweenNodes * math.sin(armAngle)
-
-    // Targets: leader apex assumed at (0,0) (leader itself not in ordered list)
-    val targetsLeft = (1 to leftCount).map(k => (-k * dx, k * dy))
-    val targetsRight = (1 to rightCount).map(k => (k * dx, k * dy))
-    val targets = targetsLeft ++ targetsRight
-
-    var available = ordered
-    targets
-      .map { case (tx, ty) =>
-        val candidate = available
-          .map {
-            case (id, (xPos, yPos)) =>
-              val newPos @ (newX, newY) = (tx + xPos, ty + yPos)
-              (id, math.sqrt(newX * newX + newY * newY), newPos)
-          }
-          .minBy(_._2)
-        available = available.filterNot(_._1 == candidate._1)
-        candidate._1 -> candidate._3
-      }
-      .toMap
-  }
-
-  private def distanceBetweenNodes: Double = sense(VFormation.INTER_DISTANCE_SENSING)
-  private def armAngle: Double = sense(VFormation.ANGLE_SENSING)
-}
-
-object VFormation {
-  val INTER_DISTANCE_SENSING = "interDistanceV"
-  val ANGLE_SENSING = "angleV"
-  val DEFAULTS: Map[String, Double] = Map(INTER_DISTANCE_SENSING -> 0.4, ANGLE_SENSING -> - Math.PI / 4)
-}
-
-class VerticalLineFormation extends ShapeFormation() {
-  // Leader at top (0,0). Other robots placed below along -Y axis at multiples of distanceThreshold.
-  override def calculateSuggestion(ordered: List[(Int, (Double, Double))]): Map[Int, (Double, Double)] = {
-    if (ordered.isEmpty) return Map.empty
-    var available = ordered
-    ordered.indices
-      .map { index =>
-        val candidate = available
-          .map {
-            case (id, (xPos, yPos)) =>
-              val offsetY = - (index + 1) * distanceBetweenNodes
-              val newPos @ (newX, newY) = (xPos, yPos + offsetY) // shift downward
-              (id, math.sqrt(newX * newX + newY * newY), newPos)
-          }
-          .minBy(_._2)
-        available = available.filterNot(_._1 == candidate._1)
-        candidate._1 -> candidate._3
-      }
-      .toMap
-  }
-
-  private def distanceBetweenNodes: Double = sense(VerticalLineFormation.INTER_DISTANCE_SENSING)
-}
-
-object VerticalLineFormation {
-  val INTER_DISTANCE_SENSING = "interDistanceVertical"
-  val DEFAULTS = Map(INTER_DISTANCE_SENSING -> 0.4)
-}

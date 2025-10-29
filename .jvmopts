@@ -1,2 +1,3 @@
 -XX:MaxMetaspaceSize=512m
 -Xmx4g
+-Dsun.java2d.opengl=false

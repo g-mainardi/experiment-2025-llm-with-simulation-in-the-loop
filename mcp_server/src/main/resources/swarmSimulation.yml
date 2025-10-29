@@ -12,7 +12,7 @@ _pool: &program
     type: Event
     actions:
       - type: RunScafiProgram
-        parameters: [ "it.unibo.scafi.CircleFormation", *retentionTime ]
+        parameters: [ "{{ }}", *retentionTime ]
   - program: send
 _move: &move
   - time-distribution: 1
@@ -53,3 +53,13 @@ deployments:
     properties:
       - type: DirectionalRobotProperty
         parameters: [ 0, 0.1 ]
+
+export:
+  - type: CSVExporter
+    parameters:
+      fileNameRoot: "experiment"
+      interval: 100
+      exportPath: "data-movement"
+    data:
+      - time
+      - type: NodesPositions

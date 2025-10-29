@@ -70,7 +70,7 @@ object ScafiTestUtils {
       Files.writeString(simulationFile, simulationSpec)
 
       val simulation = LoadAlchemist.from(simulationFile.toFile).getDefault
-      simulation.getEnvironment.addTerminator(new AfterTime(new DoubleTime(100.0)))
+      simulation.getEnvironment.addTerminator(new AfterTime(new DoubleTime(1000.0)))
       simulation.play()
       simulation.run()
       val containErrors = simulation.getError.isPresent
