@@ -65,11 +65,16 @@ object ScafiTestUtils {
     try {
       Class.forName(fqnClass, true, loader)
 
-      val simulationSpec = Source.fromResource("swarmSimulation.yml").mkString.replace("{{ }}", fqnClass)
+      val exportDir = tempDir.resolve("export")
+      val simulationSpec = Source.fromResource("swarmSimulation.yml").mkString
+        .replace("{{ }}", fqnClass)
+        .replace("{{EXPORT_DIR}}", exportDir.toAbsolutePath.toString)
       val simulationFile = Files.createTempFile(tempDir, "swarmSimulation", ".yml")
+
       Files.writeString(simulationFile, simulationSpec)
 
-      val simulation = LoadAlchemist.from(simulationFile.toFile).getDefault
+      val alchemistLoader = LoadAlchemist.from(simulationFile.toFile)
+      val simulation = alchemistLoader.getDefault
       simulation.getEnvironment.addTerminator(new AfterTime(new DoubleTime(1000.0)))
       simulation.play()
       simulation.run()

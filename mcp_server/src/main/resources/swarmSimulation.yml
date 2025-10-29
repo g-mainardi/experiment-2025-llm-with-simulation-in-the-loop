@@ -59,7 +59,7 @@ export:
     parameters:
       fileNameRoot: "experiment"
       interval: 100
-      exportPath: "data-movement"
+      exportPath: "{{EXPORT_DIR}}"
     data:
       - time
       - type: NodesPositions

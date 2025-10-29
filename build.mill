@@ -27,7 +27,9 @@ object mcp_server extends Common {
     mvn"io.modelcontextprotocol.sdk:mcp-json:0.14.1",
     mvn"org.slf4j:slf4j-simple:2.0.9",
     // Plotting
-    mvn"io.github.pityka::nspl-awt:0.11.1"
+    mvn"io.github.pityka::nspl-awt:0.11.1",
+    // CSV
+    mvn"com.github.tototoshi::scala-csv:2.0.0",
   )
   
 //  def mainClass = Some("it.unibo.llm.Main")
