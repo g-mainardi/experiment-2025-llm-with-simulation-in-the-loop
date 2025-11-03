@@ -1,4 +1,4 @@
-package it.unibo.llm.server.utils
+package it.unibo.llm.mcp.server.utils
 
 import com.github.tototoshi.csv.{CSVReader, DefaultCSVFormat}
 import it.unibo.alchemist.boundary.LoadAlchemist
