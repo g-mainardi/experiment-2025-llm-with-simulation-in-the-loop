@@ -1,4 +1,4 @@
-package it.unibo.llm.mcp.server
+package it.unibo.llm.server
 
 object Schemas {
   case class CompilationSchema(

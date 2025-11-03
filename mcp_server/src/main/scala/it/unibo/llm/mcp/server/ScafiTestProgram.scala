@@ -1,4 +1,4 @@
-package it.unibo.llm
+package it.unibo.llm.mcp.server
 
 import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist._
 

@@ -38,3 +38,23 @@ object mcp_server extends Common {
 
   def prependShellScript = ""
 }
+
+object simulation_agent extends Common {
+  def moduleDeps = Seq(
+    mcp_server,
+  )
+  
+  def mvnDeps = Seq(
+    mvn"org.slf4j:slf4j-simple:2.0.9",
+    mvn"org.bsc.langgraph4j:langgraph4j-core:1.7.2",
+    mvn"org.bsc.langgraph4j:langgraph4j-langchain4j:1.7.2",
+    mvn"org.bsc.langgraph4j:langgraph4j-agent-executor:1.7.2",
+    mvn"dev.langchain4j:langchain4j:1.8.0",
+    mvn"dev.langchain4j:langchain4j-mcp:1.8.0-beta15",
+    mvn"dev.langchain4j:langchain4j-google-ai-gemini:1.8.0",
+  )
+
+  override def forkArgs = Seq("-Dsun.java2d.opengl=false")
+  def mainClass = Some("it.unibo.llm.agent.Main")
+  def prependShellScript = ""
+}

@@ -1,4 +1,4 @@
-package it.unibo.llm.mcp.server.utils
+package it.unibo.llm.server.utils
 
 case class NodePosition(x: Double, y: Double)
 object NodePosition {

@@ -11,3 +11,9 @@ This will run the MCP server using the Model Context Protocol Inspector.
 ```bash
 npx @modelcontextprotocol/inspector java -jar out/mcp_server/assembly.dest/out.jar
 ```
+
+## Start the agent
+
+```bash
+./mill simulation_agent.run "out/mcp_server/assembly.dest/out.jar" "gemini-2.5-pro" "<task description>"
+```
