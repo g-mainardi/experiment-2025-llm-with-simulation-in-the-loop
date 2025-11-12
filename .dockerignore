@@ -1,0 +1,24 @@
+# Mill output directories
+out/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+.bsp/
+
+# Git
+.git/
+.gitignore
+
+# Simulation agent (not needed for server)
+simulation_agent/
+
+# Docker files
+*.Dockerfile
+docker-compose.yml
+
+# Other
+README.md
+effects/
+

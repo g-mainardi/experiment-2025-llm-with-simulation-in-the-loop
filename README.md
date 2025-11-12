@@ -7,9 +7,22 @@ This will generate the jar containing the MCP server.
 ./mill mcp_server.assembly
 ```
 
-This will run the MCP server using the Model Context Protocol Inspector.
+To execute the server, run:
 ```bash
-npx @modelcontextprotocol/inspector java -jar out/mcp_server/assembly.dest/out.jar
+java -jar out/mcp_server/assembly.dest/out.jar
+```
+
+or using Docker:
+
+```bash
+docker build -f server.Dockerfile -t scafi-mcp-server:latest .
+docker run --rm -it -p 8080:8080 scafi-mcp-server:latest
+```
+
+or using docker-compose:
+
+```bash
+docker compose up
 ```
 
 ## Start the agent
