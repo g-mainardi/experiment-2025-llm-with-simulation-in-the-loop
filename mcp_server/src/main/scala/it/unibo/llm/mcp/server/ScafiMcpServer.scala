@@ -2,19 +2,26 @@ package it.unibo.llm.mcp.server
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper
-import io.modelcontextprotocol.server.transport.StdioServerTransportProvider
+import io.modelcontextprotocol.server.transport.HttpServletSseServerTransportProvider
 import io.modelcontextprotocol.server.{McpAsyncServerExchange, McpServer, McpServerFeatures}
 import io.modelcontextprotocol.spec.McpSchema._
 import it.unibo.llm.mcp.server.utils.ScafiTestUtils
+import org.eclipse.jetty.server.Server
+import org.eclipse.jetty.servlet.{ServletContextHandler, ServletHolder}
 import reactor.core.publisher.Mono
 
 import scala.concurrent.duration.Duration
 import scala.io.Source
 import scala.jdk.CollectionConverters._
 
-class Server {
+class ScafiMcpServer {
+  private val logger = org.slf4j.LoggerFactory.getLogger(classOf[ScafiMcpServer])
   private val mapper = new JacksonMcpJsonMapper(new ObjectMapper())
-  private val transport = new StdioServerTransportProvider(mapper)
+  private val transport = new HttpServletSseServerTransportProvider.Builder()
+    .baseUrl("/mcp/scafi")
+    .messageEndpoint("/mcp/scafi")
+    .jsonMapper(mapper)
+    .build()
   private val capabilities = ServerCapabilities.builder()
     .resources(false, false)
     .tools(true)
@@ -68,10 +75,38 @@ class Server {
   }
 
   def initialize(): Unit = {
-    McpServer.async(transport)
+    logger.info("Starting ScaFi MCP Server...")
+    val mcpServer = McpServer.async(transport)
+      .serverInfo("ScaFi Simulator MCP Server", "1.0.0")
       .capabilities(capabilities)
       .tools(compilationTool, simulationTool)
       .build()
-    ()
+
+    val contextHandler = new ServletContextHandler(ServletContextHandler.SESSIONS)
+    contextHandler.setContextPath("/")
+    val serverletHolder = new ServletHolder(transport)
+    contextHandler.addServlet(serverletHolder, "/*")
+
+    val server = new Server(8080)
+    server.setHandler(contextHandler)
+
+    try {
+      server.start()
+      logger.info("ScaFi MCP Server started on port 8080")
+      Runtime.getRuntime.addShutdownHook(new Thread(() => {
+        try {
+          mcpServer.close()
+          server.stop()
+        } catch {
+          case e: Exception => logger.error("Error during server shutdown", e)
+        }
+      }))
+      server.join()
+    } catch {
+      case e: Exception =>
+        logger.error("Error starting the server", e)
+        mcpServer.close()
+        throw new RuntimeException(e)
+    }
   }
 }

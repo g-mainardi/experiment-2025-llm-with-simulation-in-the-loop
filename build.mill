@@ -22,14 +22,21 @@ object mcp_server extends Common {
     mvn"it.unibo.alchemist:alchemist-maps:42.3.7".excludeName("guava"),
     mvn"it.unibo.alchemist:alchemist-incarnation-scafi:42.3.7".excludeName("guava"),
     mvn"it.unibo.scafi::scafi-core:1.6.0",
-    mvn"io.modelcontextprotocol.sdk:mcp:0.14.1",
-    mvn"io.modelcontextprotocol.sdk:mcp-core:0.14.1",
-    mvn"io.modelcontextprotocol.sdk:mcp-json:0.14.1",
+    mvn"io.modelcontextprotocol.sdk:mcp",
+    mvn"io.modelcontextprotocol.sdk:mcp-json",
+    mvn"io.modelcontextprotocol.sdk:mcp-spring-webmvc",
+    mvn"jakarta.servlet:jakarta.servlet-api:6.1.0",
+    mvn"org.eclipse.jetty:jetty-servlet:11.0.24",
+//    mvn"io.modelcontextprotocol.sdk:mcp-core:0.14.1",
     mvn"org.slf4j:slf4j-simple:2.0.9",
     // Plotting
     mvn"io.github.pityka::nspl-awt:0.11.1",
     // CSV
     mvn"com.github.tototoshi::scala-csv:2.0.0",
+  )
+
+  override def bomMvnDeps = Seq(
+    mvn"io.modelcontextprotocol.sdk:mcp-bom:0.14.1"
   )
   
 //  def mainClass = Some("it.unibo.llm.Main")
