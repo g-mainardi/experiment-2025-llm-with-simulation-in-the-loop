@@ -27,7 +27,6 @@ object mcp_server extends Common {
     mvn"io.modelcontextprotocol.sdk:mcp-spring-webmvc",
     mvn"jakarta.servlet:jakarta.servlet-api:6.1.0",
     mvn"org.eclipse.jetty:jetty-servlet:11.0.24",
-//    mvn"io.modelcontextprotocol.sdk:mcp-core:0.14.1",
     mvn"org.slf4j:slf4j-simple:2.0.9",
     // Plotting
     mvn"io.github.pityka::nspl-awt:0.11.1",
