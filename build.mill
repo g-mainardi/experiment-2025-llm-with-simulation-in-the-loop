@@ -1,5 +1,5 @@
 package build
-import mill.*, scalalib.*
+import mill.*, scalalib.*, pythonlib.*
 
 val scala2Version = "2.13.17"
 
@@ -65,4 +65,14 @@ object simulation_agent extends Common {
   override def forkArgs = Seq("-Dsun.java2d.opengl=false")
   def mainClass = Some("it.unibo.llm.agent.Main")
   def prependShellScript = ""
+}
+
+object simulation_agent_py extends PythonModule {
+  private val langhchainVersion = "1.0.2"
+  def pythonDeps = Seq(
+    s"langchain==$langhchainVersion",
+    s"langchain-openai==$langhchainVersion",
+    "langchain-mcp-adapters==0.1.13"
+  )
+  def mainScript = Task.Source("scafi_agent.py")
 }
