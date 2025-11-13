@@ -17,7 +17,7 @@ class AgentTask(model: ChatModel, prompt: String) {
   logger.info("MCP Server Hostname: {}", hostname)
   private val transport = new StreamableHttpMcpTransport.Builder() //new StdioMcpTransport.Builder()
     .logger(logger)
-    .url("http://localhost:8080/mcp/scafi/")
+    .url("http://localhost:8080/mcp")
     .logResponses(true)
     .logRequests(true)
 //    .command(List(

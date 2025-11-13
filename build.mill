@@ -6,10 +6,7 @@ val scala2Version = "2.13.17"
 trait Common extends SbtModule {
   def scalaVersion = scala2Version
   def scalacOptions = Seq(
-    "-deprecation",
-    "-encoding", "utf8",
-    "-feature",
-    "-unchecked",
+    "-deprecation", "-encoding", "utf8", "-feature", "-unchecked"
   )
 }
 
@@ -27,17 +24,21 @@ object mcp_server extends Common {
     mvn"io.modelcontextprotocol.sdk:mcp-spring-webmvc",
     mvn"jakarta.servlet:jakarta.servlet-api:6.1.0",
     mvn"org.eclipse.jetty:jetty-servlet:11.0.24",
-    mvn"org.slf4j:slf4j-simple:2.0.9",
+    // mvn"org.slf4j:slf4j-simple:2.0.9",
+    mvn"org.springframework.ai:spring-ai-starter-mcp-server-webmvc", // .excludeName("slf4j-simple"),
     // Plotting
     mvn"io.github.pityka::nspl-awt:0.11.1",
     // CSV
     mvn"com.github.tototoshi::scala-csv:2.0.0",
+    // Logback
+    mvn"org.springframework.boot:spring-boot-starter-web:3.5.7"
   )
 
   override def bomMvnDeps = Seq(
-    mvn"io.modelcontextprotocol.sdk:mcp-bom:0.14.1"
+    mvn"io.modelcontextprotocol.sdk:mcp-bom:0.14.1",
+    mvn"org.springframework.ai:spring-ai-bom:1.1.0"
   )
-  
+
 //  def mainClass = Some("it.unibo.llm.Main")
   override def forkArgs = Seq("-Dsun.java2d.opengl=false")
   def mainClass = Some("it.unibo.llm.mcp.server.ServerMain")
@@ -47,9 +48,9 @@ object mcp_server extends Common {
 
 object simulation_agent extends Common {
   def moduleDeps = Seq(
-    mcp_server,
+    mcp_server
   )
-  
+
   def mvnDeps = Seq(
     mvn"org.slf4j:slf4j-simple:2.0.9",
     mvn"org.bsc.langgraph4j:langgraph4j-core:1.7.2",
@@ -58,6 +59,7 @@ object simulation_agent extends Common {
     mvn"dev.langchain4j:langchain4j:1.8.0",
     mvn"dev.langchain4j:langchain4j-mcp:1.8.0-beta15",
     mvn"dev.langchain4j:langchain4j-google-ai-gemini:1.8.0",
+    mvn"dev.langchain4j:langchain4j-ollama:1.8.0"
   )
 
   override def forkArgs = Seq("-Dsun.java2d.opengl=false")
