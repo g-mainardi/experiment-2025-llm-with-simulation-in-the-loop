@@ -13,11 +13,4 @@ class SpringMain
 object SpringMain {
   def main(args: Array[String]): Unit =
     SpringApplication.run(classOf[SpringMain], args: _*)
-  /*
-  @Bean
-  def myTools(scafiTools: ScafiTools): ToolCallbackProvider = {
-    MethodToolCallbackProvider.builder()
-      .toolObjects(scafiTools)
-      .build()
-  }*/
 }

@@ -3,7 +3,7 @@ from langchain_openai import ChatOpenAI
 import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
 llm = ChatOpenAI(
-    model="qwen3-vl:4b",
+    model="qwen3-vl:2b",
     base_url="http://localhost:11434/v1",
     api_key="none"
 )
