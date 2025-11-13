@@ -1,6 +1,7 @@
 package it.unibo.llm.agent
 
 import dev.langchain4j.mcp.McpToolProvider
+import dev.langchain4j.mcp.client.transport.http.StreamableHttpMcpTransport
 import dev.langchain4j.mcp.client.transport.stdio.StdioMcpTransport
 import dev.langchain4j.mcp.client.{DefaultMcpClient, McpClient}
 import dev.langchain4j.model.chat.ChatModel
@@ -10,15 +11,22 @@ import org.bsc.langgraph4j.agentexecutor.AgentExecutor
 import java.io.File
 import scala.jdk.CollectionConverters._
 
-class AgentTask(private val jarFile: File, model: ChatModel, prompt: String) {
-  private val transport = new StdioMcpTransport.Builder()
-    .command(List(
-      "java",
-      "-jar",
-      jarFile.getAbsoluteFile.toString
-    ).asJava)
-    .logEvents(true)
-    .environment(Map.empty[String, String].asJava)
+class AgentTask(model: ChatModel, prompt: String) {
+  private val logger = org.slf4j.LoggerFactory.getLogger("AgentTask")
+  private val hostname = System.getenv().asScala.getOrElse("MCP_SERVER_HOSTNAME", "mcp-server")
+  logger.info("MCP Server Hostname: {}", hostname)
+  private val transport = new StreamableHttpMcpTransport.Builder() //new StdioMcpTransport.Builder()
+    .logger(logger)
+    .url("http://localhost:8080/mcp/scafi/")
+    .logResponses(true)
+    .logRequests(true)
+//    .command(List(
+//      "java",
+//      "-jar",
+//      jarFile.getAbsoluteFile.toString
+//    ).asJava)
+//    .logEvents(true)
+//    .environment(Map.empty[String, String].asJava)
     .build()
 
   private val mcpClient = new DefaultMcpClient.Builder()

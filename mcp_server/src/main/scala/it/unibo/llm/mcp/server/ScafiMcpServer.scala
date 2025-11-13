@@ -18,7 +18,7 @@ class ScafiMcpServer {
   private val logger = org.slf4j.LoggerFactory.getLogger(classOf[ScafiMcpServer])
   private val mapper = new JacksonMcpJsonMapper(new ObjectMapper())
   private val transport = new HttpServletSseServerTransportProvider.Builder()
-    .baseUrl("/mcp/scafi")
+    .baseUrl("/")
     .messageEndpoint("/mcp/scafi")
     .jsonMapper(mapper)
     .build()
