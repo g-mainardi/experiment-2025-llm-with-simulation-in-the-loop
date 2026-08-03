@@ -1,5 +1,11 @@
 {
     "files.watcherExclude": {
-        "**/target": true
+        "**/target/**": true
+    },
+    "[markdown]": {
+        "editor.defaultFormatter": "DavidAnson.vscode-markdownlint",
+        "editor.formatOnSave": true,
+        // Optional: disable formatting for specific rules if they conflict with your style
+        "markdownlint.run": "onSave" 
     }
 }
