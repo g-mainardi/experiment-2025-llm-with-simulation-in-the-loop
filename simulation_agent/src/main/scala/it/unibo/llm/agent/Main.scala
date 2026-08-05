@@ -9,15 +9,24 @@ object Main {
   def main(args: Array[String]): Unit = {
     val modelName = args(0)
     logger.info("Starting simulation agent with with model: {}", modelName)
-    val model = //GoogleAiGeminiChatModel.builder()
-      OllamaChatModel.builder()
-      .temperature(0.0)
-      .logRequests(true)
-      .logResponses(true)
+    val temperature = 0.0
+    val logRequestsAndResponses = true
+    val model = if (modelName.toLowerCase.startsWith("gemini")) {
+      GoogleAiGeminiChatModel.builder()
+      .apiKey(System.getenv("GOOGLE_API_KEY"))
       .modelName(modelName)
-      //.apiKey(System.getenv("GOOGLE_API_KEY"))
+      .temperature(temperature)
+      .logRequestsAndResponses(logRequestsAndResponses)
+      .build()
+    } else {
+      OllamaChatModel.builder()
+      .temperature(temperature)
+      .logRequests(logRequestsAndResponses)
+      .logResponses(logRequestsAndResponses)
+      .modelName(modelName)
       .baseUrl("http://localhost:11434")
       .build()
+    }
     val task = new AgentTask(model,
     """
         |Run the simulation of this:

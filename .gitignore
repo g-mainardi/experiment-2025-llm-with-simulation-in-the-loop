@@ -33,4 +33,6 @@ hs_err_pid*
 .idea/
 
 data-movement/
+.env
+
 # End of https://www.toptal.com/developers/gitignore/api/scala,mill,sbt
