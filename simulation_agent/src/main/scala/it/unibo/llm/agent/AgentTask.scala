@@ -1,7 +1,7 @@
 package it.unibo.llm.agent
 
 import dev.langchain4j.mcp.McpToolProvider
-import dev.langchain4j.mcp.client.transport.http.StreamableHttpMcpTransport
+import dev.langchain4j.mcp.client.transport.http.HttpMcpTransport
 import dev.langchain4j.mcp.client.transport.stdio.StdioMcpTransport
 import dev.langchain4j.mcp.client.{DefaultMcpClient, McpClient}
 import dev.langchain4j.model.chat.ChatModel
@@ -15,9 +15,8 @@ class AgentTask(model: ChatModel, prompt: String) {
   private val logger = org.slf4j.LoggerFactory.getLogger("AgentTask")
   private val hostname = System.getenv().asScala.getOrElse("MCP_SERVER_HOSTNAME", "mcp-server")
   logger.info("MCP Server Hostname: {}", hostname)
-  private val transport = new StreamableHttpMcpTransport.Builder() //new StdioMcpTransport.Builder()
-    .logger(logger)
-    .url("http://localhost:8080/mcp")
+  private val transport = new HttpMcpTransport.Builder() //new StdioMcpTransport.Builder()
+    .sseUrl("http://localhost:8080/mcp/sse")
     .logResponses(true)
     .logRequests(true)
 //    .command(List(

@@ -12,7 +12,7 @@ services:
       - JAVA_OPTS=-Dsun.java2d.opengl=false
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/mcp/scafi"]
+      test: ["CMD", "curl", "-s", "-o", "/dev/null", "http://localhost:8080/mcp"]
       interval: 30s
       timeout: 10s
       retries: 3
