@@ -8,7 +8,7 @@ Experiment where an LLM acts as "programmer in the loop": it writes ScaFi aggreg
 
 ## Commands
 
-Build tool is Mill (`./mill`, version pinned in `.mill-version`). Scala 2.13.17. There are no tests.
+Build tool is Mill (`./mill`, version pinned in `.mill-version`). Scala 2.13.17. There are no tests: `mcp_server.test` only holds the dev-only `SimulationProbe` (`./mill mcp_server.test.runMain it.unibo.llm.mcp.server.SimulationProbe <abs path to CircleFormation.scala>`), which checks that `simulate_code` runs the submitted code and prints the circle metrics.
 
 ```bash
 ./mill mcp_server.compile                 # compile a module

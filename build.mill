@@ -46,6 +46,11 @@ object mcp_server extends Common {
   def mainClass = Some("it.unibo.llm.mcp.server.ServerMain")
 
   def prependShellScript = ""
+
+  // Dev-only tools (SimulationProbe), kept out of the server jar; no tests yet
+  object test extends SbtTests with scalalib.TestModule.Junit4 {
+    override def forkArgs = Seq("-Dsun.java2d.opengl=false")
+  }
 }
 
 object simulation_agent extends Common {
