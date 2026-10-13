@@ -29,11 +29,11 @@ docker compose up                         # server via server.Dockerfile
 
 Three Mill modules (`build.mill`):
 
-- **`mcp_server`**: MCP server exposing two tools. `ServerMain` → `ScafiMcpServer`, which uses the plain MCP Java SDK with a streamable-HTTP servlet transport on Jetty. Tool input schemas are JSON files in `resources/schemas/`. `SpringMain` + `tool/ScafiTools.scala` + `application.properties` are an alternative Spring AI implementation of the same tools (different tool names: `compile_scafi`/`simulate_scafi` vs `compile_code`/`simulate_code`), not the default main class. `Main.scala` just runs `swarmSimulationTest.yml` directly, for debugging.
+- **`mcp_server`**: MCP server exposing two tools. `ServerMain` → `ScafiMcpServer`, which uses the plain MCP Java SDK with an HTTP SSE servlet transport on Jetty. Tool input schemas are JSON files in `resources/schemas/`. `SpringMain` + `tool/ScafiTools.scala` + `application.properties` are an alternative Spring AI implementation of the same tools (different tool names: `compile_scafi`/`simulate_scafi` vs `compile_code`/`simulate_code`), not the default main class. `Main.scala` just runs `swarmSimulationTest.yml` directly, for debugging.
 - **`simulation_agent`**: Scala LangGraph4j `AgentExecutor` + LangChain4j MCP client. Lists the server's tools and registers them on the agent. Depends on `mcp_server` (classpath only).
 - **`simulation_agent_py`**: Python equivalent using `langchain-mcp-adapters`.
 
-Client and server transports have to match. The branch currently uses streamable HTTP (`StreamableHttpMcpTransport` / `HttpServletStreamableServerTransportProvider`); earlier commits used SSE (`/mcp/sse` + `/mcp/message`).
+Client and server transports have to match. Both use HTTP SSE: the server exposes `/mcp/sse` + `/mcp/message` (`HttpServletSseServerTransportProvider`) and the agent connects to `/mcp/sse` (`HttpMcpTransport`). Earlier commits tried streamable HTTP (`StreamableHttpMcpTransport` / `HttpServletStreamableServerTransportProvider`).
 
 ### Simulation pipeline (`mcp_server/.../utils/ScafiTestUtils.scala`)
 
