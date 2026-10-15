@@ -2,7 +2,7 @@ package it.unibo.llm.mcp.server
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper
-import io.modelcontextprotocol.server.transport.HttpServletSseServerTransportProvider
+import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider
 import io.modelcontextprotocol.server.McpAsyncServerExchange
 import io.modelcontextprotocol.server.McpServer
 import io.modelcontextprotocol.server.McpServerFeatures
@@ -24,9 +24,8 @@ class ScafiMcpServer {
 
   private val mapper = new JacksonMcpJsonMapper(new ObjectMapper())
 
-  private val transport = new HttpServletSseServerTransportProvider.Builder()
-    .sseEndpoint("/mcp/sse")
-    .messageEndpoint("/mcp/message")
+  private val transport = new HttpServletStreamableServerTransportProvider.Builder()
+    .mcpEndpoint("/mcp")
     .jsonMapper(mapper)
     .build()
 
