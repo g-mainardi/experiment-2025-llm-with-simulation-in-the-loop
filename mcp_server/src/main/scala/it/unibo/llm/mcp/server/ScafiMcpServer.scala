@@ -16,6 +16,7 @@ import reactor.core.publisher.Mono
 import scala.concurrent.duration.Duration
 import scala.io.Source
 import scala.jdk.CollectionConverters._
+import scala.util.control.NonFatal
 
 class ScafiMcpServer {
 
@@ -77,17 +78,25 @@ class ScafiMcpServer {
   }
 
   private def handleSimulation(server: McpAsyncServerExchange, request: CallToolRequest): Mono[CallToolResult] = {
-    val program         = request.arguments().get("program").toString
-    val timeout         = request.arguments().get("timeout").toString
+    val program = request.arguments().get("program").toString
+    // Optional in the schema: clients don't have to send the default
+    val timeout         = Option(request.arguments().get("timeout")).getOrElse(60).toString
     val durationTimeout =
       try Duration(s"${timeout}s")
       catch {
         case _: NumberFormatException => return Mono.just(new CallToolResult(s"Invalid timeout format: $timeout", true))
       }
 
-    val (hasErrors, errors, imageBase64) = ScafiTestUtils.simulateProgram(program, durationTimeout)
+    // Any failure goes back as a tool error the model can read, not as a protocol error
+    val (hasErrors, errors, imageBase64) =
+      try ScafiTestUtils.simulateProgram(program, durationTimeout)
+      catch {
+        case NonFatal(e) =>
+          logger.warn("Simulation failed", e)
+          (true, List(s"Simulation error: $e"), None)
+      }
     if (hasErrors) {
-      Mono.error(new IllegalStateException(errors.mkString("\n")))
+      Mono.just(new CallToolResult(errors.mkString("\n"), true))
     } else {
       val annotations = new Annotations(List(Role.USER).asJava, 1)
       val image       = new ImageContent(annotations, imageBase64.get, "image/png")
