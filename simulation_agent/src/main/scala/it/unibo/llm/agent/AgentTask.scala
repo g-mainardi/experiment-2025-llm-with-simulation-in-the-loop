@@ -3,13 +3,16 @@ package it.unibo.llm.agent
 import dev.langchain4j.mcp.McpToolProvider
 import dev.langchain4j.mcp.client.transport.http.StreamableHttpMcpTransport
 import dev.langchain4j.mcp.client.DefaultMcpClient
-import dev.langchain4j.mcp.client.McpClient
 import dev.langchain4j.model.chat.ChatModel
-import dev.langchain4j.model.input.PromptTemplate
-import org.bsc.langgraph4j.agentexecutor.AgentExecutor
+import dev.langchain4j.service.AiServices
 
-import java.io.File
 import scala.jdk.CollectionConverters._
+
+trait Assistant {
+
+  def chat(message: String): String
+
+}
 
 class AgentTask(model: ChatModel, prompt: String) {
 
@@ -29,20 +32,15 @@ class AgentTask(model: ChatModel, prompt: String) {
     .transport(transport)
     .build()
 
-  private val agentBuilder = AgentExecutor.builder().chatModel(model)
+  // AiServices runs the tool loop: model -> MCP tool -> tool result back to the model, until a final answer
+  private val assistant = AiServices
+    .builder(classOf[Assistant])
+    .chatModel(model)
+    .toolProvider(McpToolProvider.builder().mcpClients(mcpClient).build())
+    .build()
 
-  for (toolSpecification <- mcpClient.listTools().asScala)
-    agentBuilder.tool(toolSpecification, (request, _) => mcpClient.executeTool(request).resultText())
-
-  private val agent = agentBuilder.build().compile()
-
-  private val message = PromptTemplate.from(prompt).apply(Map.empty.asJava).toUserMessage
-
-  def execute(): String = {
-    agent
-      .invoke(Map[String, Object]("messages" -> message).asJava)
-      .flatMap(e => e.finalResponse())
-      .orElse("No response")
-  }
+  def execute(): String =
+    try assistant.chat(prompt)
+    finally mcpClient.close()
 
 }

@@ -30,7 +30,7 @@ docker compose up                         # server via server.Dockerfile
 Three Mill modules (`build.mill`):
 
 - **`mcp_server`**: MCP server exposing two tools. `ServerMain` → `ScafiMcpServer`, which uses the plain MCP Java SDK with a Streamable HTTP servlet transport on Jetty. Tool input schemas are JSON files in `resources/schemas/`. `SpringMain` + `tool/ScafiTools.scala` + `application.properties` are an alternative Spring AI implementation of the same tools (different tool names: `compile_scafi`/`simulate_scafi` vs `compile_code`/`simulate_code`), not the default main class. `Main.scala` just runs `swarmSimulationTest.yml` directly, for debugging.
-- **`simulation_agent`**: Scala LangGraph4j `AgentExecutor` + LangChain4j MCP client. Lists the server's tools and registers them on the agent. Depends on `mcp_server` (classpath only).
+- **`simulation_agent`**: Scala agent on LangChain4j 1.23: an `AiServices` assistant with the server's tools from `McpToolProvider`, which runs the tool loop. No dependency on `mcp_server`. Ollama models can't receive images in tool results (LangChain4j raises `UnsupportedFeatureException`), Gemini can.
 - **`simulation_agent_py`**: Python equivalent using `langchain-mcp-adapters`.
 
 Client and server transports have to match. All three use Streamable HTTP on the single endpoint `/mcp`: `HttpServletStreamableServerTransportProvider` on the server, `StreamableHttpMcpTransport` in the Scala agent, `streamable_http` in the Python one. The legacy HTTP SSE transport (`/mcp/sse` + `/mcp/message`) is deprecated by the MCP spec and no longer in recent LangChain4j releases.
