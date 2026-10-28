@@ -1,9 +1,13 @@
 package it.unibo.scafi
 
-import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist.{AggregateProgram, BlockC, BlockG, ScafiAlchemistSupport, StandardSensors}
-
+import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist.AggregateProgram
+import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist.BlockC
+import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist.BlockG
+import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist.ScafiAlchemistSupport
+import it.unibo.alchemist.model.scafi.ScafiIncarnationForAlchemist.StandardSensors
 
 trait BaseFormation extends AggregateProgram with StandardSensors with BlockG with BlockC with ScafiAlchemistSupport {
+
   def distanceVector: (Double, Double) = {
     val result = nbrVector()
     (result._1, result._2)
@@ -19,4 +23,5 @@ trait BaseFormation extends AggregateProgram with StandardSensors with BlockG wi
 
   def rotate90(position: (Double, Double)): (Double, Double) =
     (-position._2, position._1)
+
 }
