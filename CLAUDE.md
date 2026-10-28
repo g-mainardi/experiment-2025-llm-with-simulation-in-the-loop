@@ -53,7 +53,7 @@ This is the core logic behind both tool implementations:
 ## Workflow
 
 - `origin` (g-mainardi fork) is the reference repo, `upstream` (nicolasfara) is read-only. Run `gh` commands against the fork: PRs must target `g-mainardi/...:master`, not upstream.
-- GitHub flow: short-lived branches from `master` (`feat/…`, `fix/…`, `ci/…`, `exp/…`), merged by PR with rebase-merge only. A ruleset blocks direct pushes to `master` and requires the `success` check.
+- GitHub flow: short-lived branches from `master` (`feat/…`, `fix/…`, `ci/…`, `exp/…`), merged by PR with rebase-merge (keeps atomic commits) or squash-merge (one commit, subject = PR title). A ruleset blocks direct pushes to `master` and requires the `success` check.
 - Commit messages follow Conventional Commits, checked by `.githooks/commit-msg` locally and by CI on every PR commit. Any `./mill` run sets `core.hooksPath` to `.githooks` (see `build.mill`).
 - CI (`.github/workflows/ci.yml`): compile all modules, `SimulationProbe`, Docker build, commit check, aggregated in the `success` job.
 - Renovate (`renovate.json`) opens dependency PRs; `build.mill` and `.mill-version` are covered by regex managers.
