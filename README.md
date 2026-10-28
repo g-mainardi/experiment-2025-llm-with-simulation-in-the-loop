@@ -27,6 +27,17 @@ or using docker-compose:
 docker compose up
 ```
 
+To check that the server tools works, connect the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) to it
+while it is running (needs Node.js):
+
+```bash
+npx @modelcontextprotocol/inspector --web --transport http --server-url http://localhost:8080/mcp
+```
+
+It opens a web UI that lists the `compile_code` and `simulate_code` tools and lets you call them: passing the source of
+`mcp_server/src/main/scala/it/unibo/scafi/CircleFormation.scala` as `program` to `simulate_code` should return the plot
+of a circle.
+
 ## Start the agent
 
 ```bash
