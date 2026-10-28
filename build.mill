@@ -21,10 +21,10 @@ object mcp_server extends Common {
   def mvnDeps = Seq(
     mvn"com.google.guava:guava:33.7.2-jre",
     mvn"org.scala-lang:scala-compiler:${scalaVersion()}",
-    mvn"it.unibo.alchemist:alchemist:42.3.7".excludeName("guava"),
-    mvn"it.unibo.alchemist:alchemist-swingui:42.3.7".excludeName("guava"),
-    mvn"it.unibo.alchemist:alchemist-maps:42.3.7".excludeName("guava"),
-    mvn"it.unibo.alchemist:alchemist-incarnation-scafi:42.3.7".excludeName("guava"),
+    mvn"it.unibo.alchemist:alchemist:43.1.5".excludeName("guava"),
+    mvn"it.unibo.alchemist:alchemist-swingui:43.1.5".excludeName("guava"),
+    mvn"it.unibo.alchemist:alchemist-maps:43.1.5".excludeName("guava"),
+    mvn"it.unibo.alchemist:alchemist-incarnation-scafi:43.1.5".excludeName("guava"),
     mvn"it.unibo.scafi::scafi-core:1.8.0",
     // Classloader Alchemist loads ScaFi programs with, used directly by ScafiTestUtils (runtime-only in Alchemist)
     mvn"org.danilopianini:thread-inheritable-resource-loader:0.3.8",
