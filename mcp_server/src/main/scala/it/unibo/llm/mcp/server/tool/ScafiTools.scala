@@ -48,8 +48,8 @@ class ScafiTools {
     if (hasErrors) {
       throw new IllegalStateException(errors.mkString("\n"))
     } else {
-      val annotations = new Annotations(List(Role.USER).asJava, 1)
-      val image       = new ImageContent(annotations, imageBase64.get, "image/png")
+      val annotations = Annotations.builder().audience(List(Role.USER).asJava).priority(1.0).build()
+      val image       = ImageContent.builder(imageBase64.get, "image/png").annotations(annotations).build()
       new CallToolResult(List[Content](image).asJava, false, null, Map.empty[String, AnyRef].asJava)
     }
   }

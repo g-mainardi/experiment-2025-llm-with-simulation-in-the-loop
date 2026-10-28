@@ -29,8 +29,6 @@ object mcp_server extends Common {
     // Classloader Alchemist loads ScaFi programs with, used directly by ScafiTestUtils (runtime-only in Alchemist)
     mvn"org.danilopianini:thread-inheritable-resource-loader:0.3.8",
     mvn"io.modelcontextprotocol.sdk:mcp",
-    mvn"io.modelcontextprotocol.sdk:mcp-json",
-    mvn"io.modelcontextprotocol.sdk:mcp-spring-webmvc",
     mvn"jakarta.servlet:jakarta.servlet-api:6.1.0",
     mvn"org.eclipse.jetty:jetty-servlet:11.0.24",
     // mvn"org.slf4j:slf4j-simple:2.0.9",
@@ -44,7 +42,7 @@ object mcp_server extends Common {
   )
 
   override def bomMvnDeps = Seq(
-    mvn"io.modelcontextprotocol.sdk:mcp-bom:0.14.1",
+    mvn"io.modelcontextprotocol.sdk:mcp-bom:2.1.0",
     mvn"org.springframework.ai:spring-ai-bom:1.1.0"
   )
 

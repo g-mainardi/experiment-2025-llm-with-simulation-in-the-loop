@@ -1,7 +1,6 @@
 package it.unibo.llm.mcp.server
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper
+import io.modelcontextprotocol.json.McpJsonDefaults
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider
 import io.modelcontextprotocol.server.McpAsyncServerExchange
 import io.modelcontextprotocol.server.McpServer
@@ -22,7 +21,7 @@ class ScafiMcpServer {
 
   private val logger = org.slf4j.LoggerFactory.getLogger(classOf[ScafiMcpServer])
 
-  private val mapper = new JacksonMcpJsonMapper(new ObjectMapper())
+  private val mapper = McpJsonDefaults.getMapper
 
   private val transport = new HttpServletStreamableServerTransportProvider.Builder()
     .mcpEndpoint("/mcp")
@@ -41,38 +40,34 @@ class ScafiMcpServer {
 
   private val simulationSchema = Source.fromResource("schemas/simulation_schema.json").mkString
 
-  private val compilationTool = new McpServerFeatures.AsyncToolSpecification(
-    Tool
-      .builder()
-      .title("Code Compilation Tool")
-      .description("A tool to compile and check Scala code snippets for errors.")
-      .name("compile_code")
-      .inputSchema(mapper, compilationSchema)
-      .build(),
-    null,
-    handleCompilation
-  )
+  private val compilationTool = McpServerFeatures.AsyncToolSpecification
+    .builder()
+    .tool(
+      Tool
+        .builder("compile_code", mapper, compilationSchema)
+        .title("Code Compilation Tool")
+        .description("A tool to compile and check Scala code snippets for errors.")
+        .build()
+    )
+    .callHandler(handleCompilation _)
+    .build()
 
-  private val simulationTool = new McpServerFeatures.AsyncToolSpecification(
-    Tool
-      .builder()
-      .title("Code Simulation Tool")
-      .description("A tool to simulate ScaFi programs and check for runtime errors.")
-      .name("simulate_code")
-      .inputSchema(mapper, simulationSchema)
-      .build(),
-    null,
-    handleSimulation
-  )
+  private val simulationTool = McpServerFeatures.AsyncToolSpecification
+    .builder()
+    .tool(
+      Tool
+        .builder("simulate_code", mapper, simulationSchema)
+        .title("Code Simulation Tool")
+        .description("A tool to simulate ScaFi programs and check for runtime errors.")
+        .build()
+    )
+    .callHandler(handleSimulation _)
+    .build()
 
   private def handleCompilation(server: McpAsyncServerExchange, request: CallToolRequest): Mono[CallToolResult] = {
     val (hasErrors, errors) = ScafiTestUtils.compileAndGetErrors(request.arguments().get("program").toString)
     Mono.just(
-      new CallToolResult(
-        if (!hasErrors) { "compilation success" }
-        else { errors.mkString("\n") },
-        hasErrors
-      )
+      textResult(if (!hasErrors) "compilation success" else errors.mkString("\n"), hasErrors)
     )
   }
 
@@ -83,7 +78,8 @@ class ScafiMcpServer {
     val durationTimeout =
       try Duration(s"${timeout}s")
       catch {
-        case _: NumberFormatException => return Mono.just(new CallToolResult(s"Invalid timeout format: $timeout", true))
+        case _: NumberFormatException =>
+          return Mono.just(textResult(s"Invalid timeout format: $timeout", isError = true))
       }
 
     // Any failure goes back as a tool error the model can read, not as a protocol error
@@ -95,14 +91,17 @@ class ScafiMcpServer {
           (true, List(s"Simulation error: $e"), None)
       }
     if (hasErrors) {
-      Mono.just(new CallToolResult(errors.mkString("\n"), true))
+      Mono.just(textResult(errors.mkString("\n"), isError = true))
     } else {
-      val annotations = new Annotations(List(Role.USER).asJava, 1)
-      val image       = new ImageContent(annotations, imageBase64.get, "image/png")
-      val res         = new CallToolResult(List[Content](image).asJava, false, null, Map.empty[String, AnyRef].asJava)
+      val annotations = Annotations.builder().audience(List(Role.USER).asJava).priority(1.0).build()
+      val image       = ImageContent.builder(imageBase64.get, "image/png").annotations(annotations).build()
+      val res         = CallToolResult.builder().addContent(image).isError(false).build()
       Mono.just(res)
     }
   }
+
+  private def textResult(text: String, isError: Boolean): CallToolResult =
+    CallToolResult.builder().addTextContent(text).isError(isError).build()
 
   def initialize(): Unit = {
     logger.info("Starting ScaFi MCP Server...")

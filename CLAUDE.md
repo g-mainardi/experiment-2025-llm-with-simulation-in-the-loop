@@ -29,7 +29,7 @@ docker compose up                         # server via server.Dockerfile
 
 Three Mill modules (`build.mill`):
 
-- **`mcp_server`**: MCP server exposing two tools. `ServerMain` → `ScafiMcpServer`, which uses the plain MCP Java SDK with a Streamable HTTP servlet transport on Jetty. Tool input schemas are JSON files in `resources/schemas/`. `SpringMain` + `tool/ScafiTools.scala` + `application.properties` are an alternative Spring AI implementation of the same tools (different tool names: `compile_scafi`/`simulate_scafi` vs `compile_code`/`simulate_code`), not the default main class. `Main.scala` just runs `swarmSimulationTest.yml` directly, for debugging.
+- **`mcp_server`**: MCP server exposing two tools. `ServerMain` → `ScafiMcpServer`, which uses the plain MCP Java SDK 2.x (Jackson 3, mapper from `McpJsonDefaults`) with a Streamable HTTP servlet transport on Jetty. Tool input schemas are JSON files in `resources/schemas/`. `SpringMain` + `tool/ScafiTools.scala` + `application.properties` are an alternative Spring AI implementation of the same tools (different tool names: `compile_scafi`/`simulate_scafi` vs `compile_code`/`simulate_code`), not the default main class. It does not start at the moment: Spring AI 1.1.0 needs MCP SDK 0.x. `Main.scala` just runs `swarmSimulationTest.yml` directly, for debugging.
 - **`simulation_agent`**: Scala agent on LangChain4j 1.23: an `AiServices` assistant with the server's tools from `McpToolProvider`, which runs the tool loop. No dependency on `mcp_server`. Ollama models can't receive images in tool results (LangChain4j raises `UnsupportedFeatureException`), Gemini can.
 - **`simulation_agent_py`**: Python equivalent using `langchain-mcp-adapters`.
 
