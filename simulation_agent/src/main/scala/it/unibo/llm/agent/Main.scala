@@ -34,7 +34,9 @@ object Main {
     val task = new AgentTask(
       model,
       """
-        |Run the simulation of this:
+        |Run the simulation of this ScaFi program. The tools compile programs as Scala 3, so any code you write must be
+        |Scala 3: Scala 2 procedure syntax (`def f() { ... }`) and symbol literals (`'foo`) do not compile.
+        |
         |package it.unibo.scafi
         |
         |class CircleFormation extends ShapeFormation() {
