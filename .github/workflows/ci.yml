@@ -49,6 +49,13 @@ jobs:
             .githooks/commit-msg "$RUNNER_TEMP/msg" || status=1
           done
           exit $status
+      # Squash-merge uses the PR title as commit subject (checked on open and push, not on title edits)
+      - name: PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          printf '%s\n' "$TITLE" > "$RUNNER_TEMP/title"
+          .githooks/commit-msg "$RUNNER_TEMP/title"
 
   # Single check required by the master ruleset
   success:
