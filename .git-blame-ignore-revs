@@ -1,0 +1,4 @@
+# Formatting-only commits, skipped by git blame (GitHub reads this file automatically)
+
+# style: format sources with scalafmt
+cb72cb0b562673a2176f0400be0866c98880c52f
