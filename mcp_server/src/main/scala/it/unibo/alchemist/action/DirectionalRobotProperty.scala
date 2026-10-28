@@ -1,7 +1,7 @@
 package it.unibo.alchemist.action
 
 import it.unibo.alchemist.model.Node
-import it.unibo.alchemist.model.NodeProperty
+import it.unibo.alchemist.model.Capability
 
 object DirectionalRobotProperty {
 
@@ -15,7 +15,7 @@ class DirectionalRobotProperty[T](
     node: Node[T],
     initialAngle: Double = 0.0,
     val wheelBase: Double = DirectionalRobotProperty.DefaultWheelBase
-) extends NodeProperty[T] {
+) extends Capability[T] {
 
   import DirectionalRobotProperty._
 
@@ -31,7 +31,7 @@ class DirectionalRobotProperty[T](
 
   override def getNode: Node[T] = node
 
-  override def cloneOnNewNode(node: Node[T]): NodeProperty[T] =
+  override def cloneOnNewNode(node: Node[T]): Capability[T] =
     new DirectionalRobotProperty[T](node, getAngle, wheelBase)
 
   def orientation: (Double, Double) = (orientationX, orientationY)

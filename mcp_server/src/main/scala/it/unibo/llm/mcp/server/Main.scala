@@ -9,7 +9,7 @@ object Main {
     // simulation.getEnvironment.addTerminator(new AfterTime(new DoubleTime(100.0)))
     simulation.play()
     simulation.run()
-    simulation.getError.ifPresent(e => throw e)
+    Option(simulation.getError.getOrNull).foreach(e => throw e)
   }
 
 }

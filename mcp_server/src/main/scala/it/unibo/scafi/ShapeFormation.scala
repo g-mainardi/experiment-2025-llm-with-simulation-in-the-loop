@@ -36,7 +36,7 @@ abstract class ShapeFormation() extends BaseFormation {
     val leader                 = isLeader(leaderSelected)
     val directionTowardsLeader = computeDirectionTowardsLeader(leader)
     val property               = alchemistEnvironment
-      .getNodeByID(mid())
+      .nodeWithId(mid())
       .asProperty[DirectionalRobotProperty[Any]](classOf[DirectionalRobotProperty[Any]])
     val leaderOrientation = broadcast(leader, property.getAngle)
     val localGoal         = computeLocalGoal(leader, leaderSelected, directionTowardsLeader)

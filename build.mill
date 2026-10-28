@@ -1,7 +1,7 @@
 package build
 import mill.*, scalalib.*, pythonlib.*
 
-val scala2Version = "2.13.18"
+val scala3Version = "3.10.0"
 
 // Enables the versioned Git hooks in .githooks/ and the formatting commits skipped by git blame
 // on every Mill run (skipped where there is no repo, e.g. Docker)
@@ -11,7 +11,7 @@ if (os.exists(mill.api.BuildCtx.workspaceRoot / ".git")) {
 }
 
 trait Common extends SbtModule {
-  def scalaVersion = scala2Version
+  def scalaVersion = scala3Version
   def scalacOptions = Seq(
     "-deprecation", "-encoding", "utf8", "-feature", "-unchecked"
   )
@@ -20,11 +20,11 @@ trait Common extends SbtModule {
 object mcp_server extends Common {
   def mvnDeps = Seq(
     mvn"com.google.guava:guava:33.7.2-jre",
-    mvn"org.scala-lang:scala-compiler:${scalaVersion()}",
-    mvn"it.unibo.alchemist:alchemist:43.1.5".excludeName("guava", "logback-classic"),
-    mvn"it.unibo.alchemist:alchemist-swingui:43.1.5".excludeName("guava", "logback-classic"),
-    mvn"it.unibo.alchemist:alchemist-maps:43.1.5".excludeName("guava", "logback-classic"),
-    mvn"it.unibo.alchemist:alchemist-incarnation-scafi:43.1.5".excludeName("guava", "logback-classic"),
+    mvn"org.scala-lang::scala3-compiler:${scalaVersion()}",
+    mvn"it.unibo.alchemist:alchemist:49.1.0".excludeName("logback-classic"),
+    // javalib-java7 (from swingui) pins Guava to [11.0, 19.0-rc2], which conflicts with the version above
+    mvn"it.unibo.alchemist:alchemist-swingui:49.1.0".excludeName("guava", "logback-classic"),
+    mvn"it.unibo.alchemist:alchemist-incarnation-scafi:49.1.0",
     mvn"it.unibo.scafi::scafi-core:1.8.0",
     // Classloader Alchemist loads ScaFi programs with, used directly by ScafiTestUtils (runtime-only in Alchemist)
     mvn"org.danilopianini:thread-inheritable-resource-loader:0.3.8",

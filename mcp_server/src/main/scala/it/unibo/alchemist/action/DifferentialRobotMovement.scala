@@ -21,34 +21,36 @@ object DifferentialRobotMovement {
 
 class DifferentialRobotMovement[T, P <: Position[P]](
     environment: Environment[T, P],
-    node: Node[T],
+    reaction: NodeReaction[T],
     moleculeToObserve: Molecule,
     speed: Double,
     rotationSpeedFactor: Double = DifferentialRobotMovement.DefaultRotationSpeedFactor
-) extends AbstractMoveNode[T, P](environment, node, true) {
+) extends AbstractMoveNode[T, P](environment, reaction, true) {
 
   import DifferentialRobotMovement._
+
+  private val node: Node[T] = reaction.getHost
 
   private var previousTime: Time = new DoubleTime(0)
 
   override def getNextPosition: P = {
     val robotProperty = node.asProperty[DirectionalRobotProperty[T]](classOf[DirectionalRobotProperty[T]])
-    val direction     = node.getConcentration(moleculeToObserve).asInstanceOf[Actuation]
-    val delta         = environment.getSimulation.getTime.minus(previousTime).toDouble
+    val direction     = node.get(moleculeToObserve).getOrNull.asInstanceOf[Actuation]
+    val delta         = environment.getSimulation.getTime.getCurrent.minus(previousTime).toDouble
     val result        = direction match {
       case NoOp               => stopRobot(robotProperty)
       case Stop               => stopRobot(robotProperty)
       case Forward((dx, dy))  => handleForwardMovement(robotProperty, dx, dy, delta)
       case Rotation((rx, ry)) => handleRotation(robotProperty, rx, ry, delta)
-      case _                  => stopRobot(robotProperty)
+      case null               => stopRobot(robotProperty) // no actuation yet
     }
-    previousTime = environment.getSimulation.getTime
+    previousTime = environment.getSimulation.getTime.getCurrent
     result
   }
 
   private def stopRobot(robotProperty: DirectionalRobotProperty[T]): P = {
     robotProperty.setWheelVelocities(ZeroVelocity, ZeroVelocity)
-    environment.getPosition(node)
+    getCurrentPosition
   }
 
   private def handleForwardMovement(
@@ -81,7 +83,7 @@ class DifferentialRobotMovement[T, P <: Position[P]](
     } else {
       robotProperty.setWheelVelocities(ZeroVelocity, ZeroVelocity)
     }
-    environment.getPosition(node)
+    getCurrentPosition
   }
 
   private def moveForwardAligned(
@@ -94,7 +96,7 @@ class DifferentialRobotMovement[T, P <: Position[P]](
     robotProperty.setWheelVelocities(linearSpeed, linearSpeed)
     val vx = linearSpeed * math.cos(currentOrientation) * delta
     val vy = linearSpeed * math.sin(currentOrientation) * delta
-    environment.getPosition(node).plus(Array(vx, vy))
+    getCurrentPosition.plus(Array(vx, vy))
   }
 
   private def rotateInPlace(robotProperty: DirectionalRobotProperty[T], angleDifference: Double, delta: Double): P = {
@@ -102,7 +104,7 @@ class DifferentialRobotMovement[T, P <: Position[P]](
     val turnDirection = math.signum(angleDifference)
     setDifferentialRotation(robotProperty, rotationSpeed, turnDirection)
     robotProperty.updateOrientation(delta)
-    environment.getPosition(node)
+    getCurrentPosition
   }
 
   private def normalizeAngle(angle: Double): Double =
@@ -122,7 +124,7 @@ class DifferentialRobotMovement[T, P <: Position[P]](
   private def computeAngleDifference(targetAngle: Double, currentOrientation: Double): Double =
     normalizeAngle(targetAngle - currentOrientation)
 
-  override def cloneAction(node: Node[T], reaction: Reaction[T]): Action[T] =
-    new DifferentialRobotMovement(environment, node, moleculeToObserve, speed, rotationSpeedFactor)
+  override protected def cloneOnNodeReaction(reaction: NodeReaction[T]): Action[T] =
+    new DifferentialRobotMovement(environment, reaction, moleculeToObserve, speed, rotationSpeedFactor)
 
 }

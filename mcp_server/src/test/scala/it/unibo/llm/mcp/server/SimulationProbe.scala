@@ -15,11 +15,6 @@ import java.util.Base64
 import scala.concurrent.duration._
 import scala.io.Source
 import scala.jdk.CollectionConverters._
-import scala.jdk.OptionConverters._
-import scala.reflect.internal.util.BatchSourceFile
-import scala.tools.nsc.reporters.StoreReporter
-import scala.tools.nsc.Global
-import scala.tools.nsc.Settings
 
 /** Measures the `simulate_code` pipeline, computes the circle acceptance metrics and checks which code is actually
   * simulated.
@@ -145,15 +140,8 @@ object SimulationProbe {
       .get
       .group(1)
 
-    val settings = new Settings()
-    settings.classpath.value = System.getProperty("java.class.path")
-    settings.outputDirs.setSingleOutput(dir.toString)
-    val reporter       = new StoreReporter(settings)
-    val (compileMs, _) = time {
-      val global = new Global(settings, reporter)
-      new global.Run().compileSources(List(new BatchSourceFile("Probe.scala", program)))
-    }
-    if (reporter.hasErrors) return Run(compileMs, 0, "-", Nil, Some(reporter.infos.map(_.msg).mkString("; ")))
+    val (compileMs, (hasErrors, errors)) = time(ScafiTestUtils.compile(program, dir))
+    if (hasErrors) return Run(compileMs, 0, "-", Nil, Some(errors.mkString("; ")))
     // Classloader RunScafiProgram uses to resolve the program name
     if (registerWithAlchemist) ResourceLoader.addURL(dir.toUri.toURL)
 
@@ -176,7 +164,7 @@ object SimulationProbe {
         simulation.getEnvironment.addTerminator(new AfterTime(new DoubleTime(EndTime)))
         simulation.play()
         simulation.run()
-        simulation.getError.toScala.map(_.toString)
+        Option(simulation.getError.getOrNull).map(_.toString)
       }
       val csv     = exportDir.resolve("experiment.csv")
       val samples =

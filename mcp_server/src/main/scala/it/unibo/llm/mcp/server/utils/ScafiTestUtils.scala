@@ -2,24 +2,27 @@ package it.unibo.llm.mcp.server.utils
 
 import com.github.tototoshi.csv.CSVReader
 import com.github.tototoshi.csv.DefaultCSVFormat
+import dotty.tools.dotc.Driver
+import dotty.tools.dotc.core.Contexts.Context
+import dotty.tools.dotc.interfaces.{Diagnostic => Level}
+import dotty.tools.dotc.reporting.Diagnostic
+import dotty.tools.dotc.reporting.HideNonSensicalMessages
+import dotty.tools.dotc.reporting.Reporter
+import dotty.tools.dotc.reporting.UniqueMessagePositions
 import it.unibo.alchemist.boundary.LoadAlchemist
 import it.unibo.alchemist.model.terminators.AfterTime
 import it.unibo.alchemist.model.times.DoubleTime
 import org.kaikikm.threadresloader.ResourceLoader
 
-import java.io.File
 import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Base64
 import java.util.concurrent.atomic.AtomicLong
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import scala.io.Source
 import scala.jdk.OptionConverters.RichOptional
-import scala.reflect.internal.util.BatchSourceFile
-import scala.tools.nsc.reporters.StoreReporter
-import scala.tools.nsc.Global
-import scala.tools.nsc.Settings
 
 object ScafiTestUtils {
 
@@ -29,15 +32,8 @@ object ScafiTestUtils {
   // server (e.g. it.unibo.scafi.CircleFormation) would win: each simulation uses a new package.
   private val runCounter = new AtomicLong()
 
-  def compileAndGetErrors(code: String): (Boolean, List[String]) = {
-    val tempDir  = Files.createTempDirectory("scafi-compile-")
-    val settings = new Settings()
-    settings.usejavacp.value = true
-    settings.outputDirs.setSingleOutput(tempDir.toFile.toString)
-
-    val sourceFile = new BatchSourceFile("test.scala", code)
-    compileSources(settings, List(sourceFile))
-  }
+  def compileAndGetErrors(code: String): (Boolean, List[String]) =
+    compile(code, Files.createTempDirectory("scafi-compile-"))
 
   def simulateProgram(program: String, timeout: Duration): (Boolean, List[String], Option[String]) = {
     val tempDir = Files.createTempDirectory("scafi-simulate-")
@@ -46,16 +42,15 @@ object ScafiTestUtils {
     val classNameRegex = """(?m)^\s*(?:.*?\s)?(?:case\s+)?class\s+([A-Za-z_]\w*)\b""".r
 
     val packages  = packageRegex.findAllMatchIn(program).toList
-    val className = classNameRegex
-      .findFirstMatchIn(program)
-      .map(_.group(1))
-      .getOrElse(
+    val className = classNameRegex.findFirstMatchIn(program) match {
+      case Some(m) => m.group(1)
+      case None    =>
         return (
           true,
           List("Simulation error: Could not find class definition in the provided code:\n\n" + program),
           None
         )
-      )
+    }
     // Chained package clause: classes of the outer packages (e.g. ShapeFormation) stay visible.
     // It goes on the same line as the last clause, so error line numbers still match the submitted program.
     val runPackage    = s"run${runCounter.incrementAndGet()}"
@@ -63,22 +58,9 @@ object ScafiTestUtils {
       case Some(last) => program.patch(last.end, s"; package $runPackage", 0)
       case None       => s"package $runPackage; $program"
     }
-    val fullPackage = (packages.map(_.group(1)) :+ runPackage).mkString(".")
-    val fqnClass    = s"$fullPackage.$className"
+    val fqnClass = (packages.map(_.group(1)) :+ runPackage :+ className).mkString(".")
 
-    val sourceFile = {
-      val dest = tempDir.resolve(fullPackage.replace(".", File.separator) + s"${File.separator}$className.scala")
-      Files.createDirectories(dest.getParent)
-      dest
-    }
-    Files.writeString(sourceFile, uniqueProgram)
-
-    val settings = new Settings()
-    settings.classpath.value = System.getProperty("java.class.path")
-    settings.outputDirs.setSingleOutput(tempDir.toFile.toString)
-
-    val batch               = new BatchSourceFile(sourceFile.toString, uniqueProgram)
-    val (hasErrors, errors) = compileSources(settings, List(batch))
+    val (hasErrors, errors) = compile(uniqueProgram, tempDir)
     if (hasErrors) return (true, errors, None)
 
     // RunScafiProgram loads the program through ResourceLoader (one classloader per thread), not through the
@@ -110,8 +92,8 @@ object ScafiTestUtils {
       logger.debug(s"Positions data: $positions")
       val pngBase64 = plotNodePositions(positions, exportDir)
 
-      val containErrors = simulation.getError.isPresent
-      val errors        = simulation.getError.toScala.toList.map(e => s"Simulation error: ${e.getMessage}")
+      val containErrors = simulation.getError.isSome
+      val errors        = Option(simulation.getError.getOrNull).toList.map(e => s"Simulation error: ${e.getMessage}")
       (containErrors, errors, Some(pngBase64))
     } finally {
       ResourceLoader.getClassLoader.asInstanceOf[URLClassLoader].close()
@@ -139,8 +121,8 @@ object ScafiTestUtils {
       val position = row.tail
         .grouped(2)
         .zipWithIndex
-        .map { case (List(x, y), index) =>
-          index.toString -> NodePosition(x.toDouble, y.toDouble)
+        .map { case (xy, index) =>
+          index.toString -> NodePosition(xy(0).toDouble, xy(1).toDouble)
         }
         .toMap
       time -> position
@@ -170,15 +152,28 @@ object ScafiTestUtils {
     Base64.getEncoder.encodeToString(byteArray)
   }
 
-  private def compileSources(settings: Settings, sources: List[BatchSourceFile]): (Boolean, List[String]) = {
-    val reporter = new StoreReporter(settings)
-    val compiler = new Global(settings, reporter)
-    val run      = new compiler.Run()
+  /** Compiles `code` with the Scala 3 compiler, against the server classpath, into `outDir`. */
+  def compile(code: String, outDir: Path): (Boolean, List[String]) = {
+    val source   = Files.writeString(outDir.resolve("Program.scala"), code)
+    val messages = ListBuffer.empty[String]
+    // Same mixins as the reporter dotc builds for a SimpleReporter, without the "N errors found" summary
+    val reporter = new Reporter with UniqueMessagePositions with HideNonSensicalMessages {
+      override def doReport(d: Diagnostic)(using Context): Unit = {
+        val severity = d.level match {
+          case Level.ERROR   => "ERROR"
+          case Level.WARNING => "WARNING"
+          case _             => "INFO"
+        }
+        // dotc lines are 0-based: the agent reads 1-based lines, as nsc reported them
+        val line = d.position.toScala.fold("")(p => s" at line ${p.line + 1}")
+        messages += s"$severity: ${d.message}$line"
+      }
 
+      override def printSummary()(using Context): Unit = ()
+    }
     try {
-      run.compileSources(sources)
-      val errors = reporter.infos.map(info => s"${info.severity}: ${info.msg} at line ${info.pos.line}").toList
-      (reporter.hasErrors, errors)
+      val args = Array("-usejavacp", "-d", outDir.toString, source.toString)
+      (new Driver().process(args, reporter).hasErrors, messages.toList)
     } catch {
       case e: Exception => (true, List(s"Compilation error: ${e.getMessage}"))
     }

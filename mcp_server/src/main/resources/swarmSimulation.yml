@@ -9,14 +9,14 @@ _constants:
 
 _pool: &program
   - time-distribution: 1
-    type: Event
+    type: GenericReaction
     actions:
       - type: RunScafiProgram
         parameters: [ "{{ }}", *retentionTime ]
   - program: send
 _move: &move
   - time-distribution: 1
-    type: Event
+    type: GenericReaction
     actions:
       - type: DifferentialRobotMovement
         parameters: [ "actuation", 0.0015, 0.5 ]
@@ -50,7 +50,7 @@ deployments:
         concentration: 0.1
       - molecule: collisionArea
         concentration: 0.2
-    properties:
+    capabilities:
       - type: DirectionalRobotProperty
         parameters: [ 0, 0.1 ]
 

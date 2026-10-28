@@ -49,7 +49,7 @@ class ScafiMcpServer {
         .description("A tool to compile and check Scala code snippets for errors.")
         .build()
     )
-    .callHandler(handleCompilation _)
+    .callHandler(handleCompilation)
     .build()
 
   private val simulationTool = McpServerFeatures.AsyncToolSpecification
@@ -61,7 +61,7 @@ class ScafiMcpServer {
         .description("A tool to simulate ScaFi programs and check for runtime errors.")
         .build()
     )
-    .callHandler(handleSimulation _)
+    .callHandler(handleSimulation)
     .build()
 
   private def handleCompilation(server: McpAsyncServerExchange, request: CallToolRequest): Mono[CallToolResult] = {
