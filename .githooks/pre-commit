@@ -1,0 +1,9 @@
+#!/bin/sh
+# Rejects the commit if Scala sources are not formatted. Runs only when Scala or Mill files are staged;
+# scalafmt checks the working tree, not the staged content.
+git diff --cached --name-only --diff-filter=ACMR | grep -qE '\.(scala|mill)$' || exit 0
+
+if ! ./mill mill.scalalib.scalafmt/checkFormatAll; then
+  echo "Unformatted Scala sources: run ./mill mill.scalalib.scalafmt/reformatAll" >&2
+  exit 1
+fi
