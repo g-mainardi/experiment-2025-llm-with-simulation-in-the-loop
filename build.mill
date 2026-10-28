@@ -1,7 +1,7 @@
 package build
 import mill.*, scalalib.*, pythonlib.*
 
-val scala2Version = "2.13.17"
+val scala2Version = "2.13.18"
 
 // Enables the versioned Git hooks in .githooks/ and the formatting commits skipped by git blame
 // on every Mill run (skipped where there is no repo, e.g. Docker)
@@ -19,7 +19,7 @@ trait Common extends SbtModule {
 
 object mcp_server extends Common {
   def mvnDeps = Seq(
-    mvn"com.google.guava:guava:33.5.0-jre",
+    mvn"com.google.guava:guava:33.7.2-jre",
     mvn"org.scala-lang:scala-compiler:${scalaVersion()}",
     mvn"it.unibo.alchemist:alchemist:42.3.7".excludeName("guava"),
     mvn"it.unibo.alchemist:alchemist-swingui:42.3.7".excludeName("guava"),
@@ -30,7 +30,7 @@ object mcp_server extends Common {
     mvn"org.danilopianini:thread-inheritable-resource-loader:0.3.8",
     mvn"io.modelcontextprotocol.sdk:mcp",
     mvn"jakarta.servlet:jakarta.servlet-api:6.1.0",
-    mvn"org.eclipse.jetty:jetty-servlet:11.0.24",
+    mvn"org.eclipse.jetty:jetty-servlet:11.0.26",
     // mvn"org.slf4j:slf4j-simple:2.0.9",
     mvn"org.springframework.ai:spring-ai-starter-mcp-server-webmvc", // .excludeName("slf4j-simple"),
     // Plotting
@@ -60,7 +60,7 @@ object mcp_server extends Common {
 
 object simulation_agent extends Common {
   def mvnDeps = Seq(
-    mvn"org.slf4j:slf4j-simple:2.0.9",
+    mvn"org.slf4j:slf4j-simple:2.0.20",
     mvn"dev.langchain4j:langchain4j:1.23.0",
     mvn"dev.langchain4j:langchain4j-mcp:1.23.0-beta33",
     mvn"dev.langchain4j:langchain4j-google-ai-gemini:1.23.0",
