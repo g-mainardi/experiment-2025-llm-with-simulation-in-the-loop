@@ -23,7 +23,7 @@ docker compose up                         # server via server.Dockerfile
 
 - Model name starting with `gemini` uses Google AI (needs `GOOGLE_API_KEY`, kept in `.env`); anything else goes to Ollama at `localhost:11434`.
 - The agent's task prompt is hardcoded in `simulation_agent/.../Main.scala`, not passed as an argument.
-- Formatting: scalafmt (`.scalafmt.conf`, max 120 cols).
+- Formatting: scalafmt (`.scalafmt.conf`, max 120 cols, Scala 3 dialect for Mill build files). `./mill mill.scalalib.scalafmt/reformatAll` formats, `checkFormatAll` checks.
 
 ## Architecture
 
@@ -54,7 +54,7 @@ This is the core logic behind both tool implementations:
 
 - `origin` (g-mainardi fork) is the reference repo, `upstream` (nicolasfara) is read-only. Run `gh` commands against the fork: PRs must target `g-mainardi/...:master`, not upstream.
 - GitHub flow: short-lived branches from `master` (`feat/…`, `fix/…`, `ci/…`, `exp/…`), merged by PR with rebase-merge (keeps atomic commits) or squash-merge (one commit, subject = PR title). A ruleset blocks direct pushes to `master` and requires the `success` check.
-- Commit messages follow Conventional Commits, checked by `.githooks/commit-msg` locally and by CI on every PR commit. Any `./mill` run sets `core.hooksPath` to `.githooks` (see `build.mill`).
-- CI (`.github/workflows/ci.yml`): compile all modules, `SimulationProbe`, Docker build, commit check, aggregated in the `success` job.
+- Commit messages follow Conventional Commits, checked by `.githooks/commit-msg` locally and by CI on every PR commit. `.githooks/pre-commit` rejects unformatted Scala sources. Any `./mill` run sets `core.hooksPath` to `.githooks` (see `build.mill`).
+- CI (`.github/workflows/ci.yml`): scalafmt check, compile all modules, `SimulationProbe`, Docker build, commit check, aggregated in the `success` job.
 - Renovate (`renovate.json`) opens dependency PRs; `build.mill` and `.mill-version` are covered by regex managers.
 - Bugs and technical issues go in GitHub Issues.
