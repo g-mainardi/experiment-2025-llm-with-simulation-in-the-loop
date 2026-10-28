@@ -29,15 +29,13 @@ docker compose up                         # server via server.Dockerfile
 
 Three Mill modules (`build.mill`):
 
-- **`mcp_server`**: MCP server exposing two tools. `ServerMain` → `ScafiMcpServer`, which uses the plain MCP Java SDK 2.x (Jackson 3, mapper from `McpJsonDefaults`) with a Streamable HTTP servlet transport on Jetty. Tool input schemas are JSON files in `resources/schemas/`. `SpringMain` + `tool/ScafiTools.scala` + `application.properties` are an alternative Spring AI implementation of the same tools (different tool names: `compile_scafi`/`simulate_scafi` vs `compile_code`/`simulate_code`), not the default main class. It does not start at the moment: Spring AI 1.1.0 needs MCP SDK 0.x. `Main.scala` just runs `swarmSimulationTest.yml` directly, for debugging.
+- **`mcp_server`**: MCP server exposing two tools. `ServerMain` → `ScafiMcpServer`, which uses the plain MCP Java SDK 2.x (Jackson 3, mapper from `McpJsonDefaults`) with a Streamable HTTP servlet transport on Jetty. Tool input schemas are JSON files in `resources/schemas/`. `Main.scala` just runs `swarmSimulationTest.yml` directly, for debugging.
 - **`simulation_agent`**: Scala agent on LangChain4j 1.23: an `AiServices` assistant with the server's tools from `McpToolProvider`, which runs the tool loop. No dependency on `mcp_server`. Ollama models can't receive images in tool results (LangChain4j raises `UnsupportedFeatureException`), Gemini can.
 - **`simulation_agent_py`**: Python equivalent using `langchain-mcp-adapters`.
 
 Client and server transports have to match. All three use Streamable HTTP on the single endpoint `/mcp`: `HttpServletStreamableServerTransportProvider` on the server, `StreamableHttpMcpTransport` in the Scala agent, `streamable_http` in the Python one. The legacy HTTP SSE transport (`/mcp/sse` + `/mcp/message`) is deprecated by the MCP spec and no longer in recent LangChain4j releases.
 
 ### Simulation pipeline (`mcp_server/.../utils/ScafiTestUtils.scala`)
-
-This is the core logic behind both tool implementations:
 
 1. **Compile**: in-process `scala.tools.nsc.Global` with a `StoreReporter`, output to a temp dir. `compileAndGetErrors` uses `usejavacp`. `simulateProgram` sets the classpath from `java.class.path`. Submitted code therefore compiles against the server's own classpath, including the formation classes in `it.unibo.scafi`.
 2. **Load**: package clauses and class name are extracted by regex (first `class` in the source). Each simulation appends a unique chained package clause (`; package runN`, same line so compiler line numbers are unchanged) and points Alchemist's `ResourceLoader` (`org.kaikikm.threadresloader`, the per-thread loader `RunScafiProgram` uses to resolve the class name) at the output dir with a fresh loader (`setURLs`), closed and reset (`setDefault`) when the simulation ends, so classes from earlier simulations don't pile up. The loader delegates to the server classpath first, so without the unique package the class compiled into the server (e.g. `it.unibo.scafi.CircleFormation`) would be simulated instead of the submitted code.

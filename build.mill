@@ -21,29 +21,26 @@ object mcp_server extends Common {
   def mvnDeps = Seq(
     mvn"com.google.guava:guava:33.7.2-jre",
     mvn"org.scala-lang:scala-compiler:${scalaVersion()}",
-    mvn"it.unibo.alchemist:alchemist:43.1.5".excludeName("guava"),
-    mvn"it.unibo.alchemist:alchemist-swingui:43.1.5".excludeName("guava"),
-    mvn"it.unibo.alchemist:alchemist-maps:43.1.5".excludeName("guava"),
-    mvn"it.unibo.alchemist:alchemist-incarnation-scafi:43.1.5".excludeName("guava"),
+    mvn"it.unibo.alchemist:alchemist:43.1.5".excludeName("guava", "logback-classic"),
+    mvn"it.unibo.alchemist:alchemist-swingui:43.1.5".excludeName("guava", "logback-classic"),
+    mvn"it.unibo.alchemist:alchemist-maps:43.1.5".excludeName("guava", "logback-classic"),
+    mvn"it.unibo.alchemist:alchemist-incarnation-scafi:43.1.5".excludeName("guava", "logback-classic"),
     mvn"it.unibo.scafi::scafi-core:1.8.0",
     // Classloader Alchemist loads ScaFi programs with, used directly by ScafiTestUtils (runtime-only in Alchemist)
     mvn"org.danilopianini:thread-inheritable-resource-loader:0.3.8",
     mvn"io.modelcontextprotocol.sdk:mcp",
     mvn"jakarta.servlet:jakarta.servlet-api:6.1.0",
     mvn"org.eclipse.jetty:jetty-servlet:11.0.26",
-    // mvn"org.slf4j:slf4j-simple:2.0.9",
-    mvn"org.springframework.ai:spring-ai-starter-mcp-server-webmvc", // .excludeName("slf4j-simple"),
+    // SLF4J binding; logback-classic, pulled in by Alchemist, is excluded above to keep it the only one
+    mvn"org.slf4j:slf4j-simple:2.0.20",
     // Plotting
     mvn"io.github.pityka::nspl-awt:0.19.0",
     // CSV
-    mvn"com.github.tototoshi::scala-csv:2.0.0",
-    // Logback
-    mvn"org.springframework.boot:spring-boot-starter-web:3.5.7"
+    mvn"com.github.tototoshi::scala-csv:2.0.0"
   )
 
   override def bomMvnDeps = Seq(
-    mvn"io.modelcontextprotocol.sdk:mcp-bom:2.1.0",
-    mvn"org.springframework.ai:spring-ai-bom:1.1.0"
+    mvn"io.modelcontextprotocol.sdk:mcp-bom:2.1.0"
   )
 
 //  def mainClass = Some("it.unibo.llm.Main")
