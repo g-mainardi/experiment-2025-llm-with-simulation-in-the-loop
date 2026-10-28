@@ -1,0 +1,14 @@
+#!/bin/sh
+# Rejects commit messages that don't follow Conventional Commits. CI runs it on every commit of a PR.
+subject=$(grep -v '^#' "$1" | grep -v '^[[:space:]]*$' | head -n 1)
+
+# fixup!/squash!/amend! commits are meant to be autosquashed before the PR, so only CI rejects them
+if [ -z "$CI" ]; then
+  case "$subject" in fixup!* | squash!* | amend!*) exit 0 ;; esac
+fi
+
+if ! printf '%s\n' "$subject" | grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9_-]+\))?!?: .+'; then
+  echo "Not a Conventional Commit: \"$subject\"" >&2
+  echo "Expected: type(scope)!: description, type one of feat fix docs style refactor perf test build ci chore revert" >&2
+  exit 1
+fi

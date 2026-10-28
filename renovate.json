@@ -1,0 +1,34 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "forkProcessing": "enabled",
+  "packageRules": [
+    { "groupName": "Alchemist", "matchPackageNames": ["it.unibo.alchemist:**"] },
+    { "groupName": "LangChain4j", "matchPackageNames": ["dev.langchain4j:**"] }
+  ],
+  "customManagers": [
+    {
+      "description": "Java dependencies in build.mill: mvn\"group:artifact:version\"",
+      "customType": "regex",
+      "managerFilePatterns": ["/^build\\.mill$/"],
+      "matchStrings": ["mvn\"(?<depName>[^:\"]+:[^:\"]+):(?<currentValue>[^:\"$]+)\""],
+      "datasourceTemplate": "maven"
+    },
+    {
+      "description": "Scala dependencies in build.mill: mvn\"group::artifact:version\"",
+      "customType": "regex",
+      "managerFilePatterns": ["/^build\\.mill$/"],
+      "matchStrings": ["mvn\"(?<groupId>[^:\"]+)::(?<artifactId>[^:\"]+):(?<currentValue>[^:\"$]+)\""],
+      "depNameTemplate": "{{{groupId}}}:{{{artifactId}}}_2.13",
+      "datasourceTemplate": "maven"
+    },
+    {
+      "description": "Mill version",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.mill-version$/"],
+      "matchStrings": ["^(?<currentValue>\\S+)"],
+      "depNameTemplate": "com.lihaoyi:mill-dist",
+      "datasourceTemplate": "maven"
+    }
+  ]
+}

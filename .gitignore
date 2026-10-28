@@ -38,3 +38,4 @@ data-movement/
 # End of https://www.toptal.com/developers/gitignore/api/scala,mill,sbt
 
 probe-evidence
+.vscode/

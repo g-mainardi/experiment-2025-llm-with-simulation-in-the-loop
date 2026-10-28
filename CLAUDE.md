@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Experiment where an LLM acts as "programmer in the loop": it writes ScaFi aggregate programs (robot swarm formations) and validates them by compiling and simulating them in Alchemist through an MCP server. `.agent/AGENT_CONTEXT.md` has more project background.
+Experiment where an LLM acts as "programmer in the loop": it writes ScaFi aggregate programs (robot swarm formations) and validates them by compiling and simulating them in Alchemist through an MCP server.
 
 ## Commands
 
-Build tool is Mill (`./mill`, version pinned in `.mill-version`). Scala 2.13.17. There are no tests: `mcp_server.test` only holds the dev-only `SimulationProbe` (`./mill mcp_server.test.runMain it.unibo.llm.mcp.server.SimulationProbe <abs path to CircleFormation.scala>`), which checks that `simulate_code` runs the submitted code and prints the circle metrics.
+Build tool is Mill (`./mill`, version pinned in `.mill-version`). Scala 2.13.17. There are no tests: `mcp_server.test` only holds the dev-only `SimulationProbe` (`./mill mcp_server.test.runMain it.unibo.llm.mcp.server.SimulationProbe <abs path to CircleFormation.scala>`), which checks that `simulate_code` runs the submitted code and prints the circle metrics. It exits with 1 when the check fails, and CI runs it as a smoke test.
 
 ```bash
 ./mill mcp_server.compile                 # compile a module
@@ -50,6 +50,11 @@ This is the core logic behind both tool implementations:
 - `it.unibo.alchemist.action`: custom Alchemist extensions. `DirectionalRobotProperty` holds the node orientation, and `DifferentialRobotMovement` reads the `actuation` molecule and moves the node. The YAML template wires both, plus the `leader`, `stabilityThreshold` and `collisionArea` molecules the programs `sense`.
 - Runtime needs `-Dsun.java2d.opengl=false` (set in `forkArgs` and in Docker).
 
-## Known inconsistencies
+## Workflow
 
-- `server.Dockerfile` builds with a Mill 0.12.14 image while `.mill-version` is 1.0.2.
+- `origin` (g-mainardi fork) is the reference repo, `upstream` (nicolasfara) is read-only. Run `gh` commands against the fork: PRs must target `g-mainardi/...:master`, not upstream.
+- GitHub flow: short-lived branches from `master` (`feat/…`, `fix/…`, `ci/…`, `exp/…`), merged by PR with rebase-merge (keeps atomic commits) or squash-merge (one commit, subject = PR title). A ruleset blocks direct pushes to `master` and requires the `success` check.
+- Commit messages follow Conventional Commits, checked by `.githooks/commit-msg` locally and by CI on every PR commit. Any `./mill` run sets `core.hooksPath` to `.githooks` (see `build.mill`).
+- CI (`.github/workflows/ci.yml`): compile all modules, `SimulationProbe`, Docker build, commit check, aggregated in the `success` job.
+- Renovate (`renovate.json`) opens dependency PRs; `build.mill` and `.mill-version` are covered by regex managers.
+- Bugs and technical issues go in GitHub Issues.

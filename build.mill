@@ -3,6 +3,10 @@ import mill.*, scalalib.*, pythonlib.*
 
 val scala2Version = "2.13.17"
 
+// Enables the versioned Git hooks in .githooks/ on every Mill run (skipped where there is no repo, e.g. Docker)
+if (os.exists(mill.api.BuildCtx.workspaceRoot / ".git"))
+  os.call(("git", "config", "core.hooksPath", ".githooks"), cwd = mill.api.BuildCtx.workspaceRoot)
+
 trait Common extends SbtModule {
   def scalaVersion = scala2Version
   def scalacOptions = Seq(
