@@ -8,7 +8,7 @@ Experiment where an LLM acts as "programmer in the loop": it writes ScaFi aggreg
 
 ## Commands
 
-Build tool is Mill (`./mill`, version pinned in `.mill-version`). Scala 2.13.18. There are no tests: `mcp_server.test` only holds the dev-only `SimulationProbe` (`./mill mcp_server.test.runMain it.unibo.llm.mcp.server.SimulationProbe <abs path to CircleFormation.scala>`), which checks that `simulate_code` runs the submitted code and prints the circle metrics. It exits with 1 when the check fails, and CI runs it as a smoke test.
+Build tool is Mill (`./mill`, version pinned in `.mill-version`). Scala 3.10.0, the version the Alchemist ScaFi incarnation is built with (it is Scala 3 only since Alchemist 45). There are no tests: `mcp_server.test` only holds the dev-only `SimulationProbe` (`./mill mcp_server.test.runMain it.unibo.llm.mcp.server.SimulationProbe <abs path to CircleFormation.scala>`), which checks that `simulate_code` runs the submitted code and prints the circle metrics. It exits with 1 when the check fails, and CI runs it as a smoke test.
 
 ```bash
 ./mill mcp_server.compile                 # compile a module
@@ -23,7 +23,7 @@ docker compose up                         # server via server.Dockerfile
 
 - Model name starting with `gemini` uses Google AI (needs `GOOGLE_API_KEY`, kept in `.env`); anything else goes to Ollama at `localhost:11434`.
 - The agent's task prompt is hardcoded in `simulation_agent/.../Main.scala`, not passed as an argument.
-- Formatting: scalafmt (`.scalafmt.conf`, max 120 cols, Scala 3 dialect for Mill build files). `./mill mill.scalalib.scalafmt/reformatAll` formats, `checkFormatAll` checks.
+- Formatting: scalafmt (`.scalafmt.conf`, max 120 cols, Scala 3 dialect). `./mill mill.scalalib.scalafmt/reformatAll` formats, `checkFormatAll` checks.
 
 ## Architecture
 
@@ -37,7 +37,7 @@ Client and server transports have to match. All three use Streamable HTTP on the
 
 ### Simulation pipeline (`mcp_server/.../utils/ScafiTestUtils.scala`)
 
-1. **Compile**: in-process `scala.tools.nsc.Global` with a `StoreReporter`, output to a temp dir. `compileAndGetErrors` uses `usejavacp`. `simulateProgram` sets the classpath from `java.class.path`. Submitted code therefore compiles against the server's own classpath, including the formation classes in `it.unibo.scafi`.
+1. **Compile**: `ScafiTestUtils.compile` runs the Scala 3 compiler in process (`dotty.tools.dotc.Driver`, `-usejavacp`, output to a temp dir), so submitted code is Scala 3 and compiles against the server's own classpath, including the formation classes in `it.unibo.scafi`. Its reporter returns `<SEVERITY>: <message> at line <n>`, the text the agent reads: dotc lines are 0-based and get +1, and the "N errors found" summary is dropped.
 2. **Load**: package clauses and class name are extracted by regex (first `class` in the source). Each simulation appends a unique chained package clause (`; package runN`, same line so compiler line numbers are unchanged) and points Alchemist's `ResourceLoader` (`org.kaikikm.threadresloader`, the per-thread loader `RunScafiProgram` uses to resolve the class name) at the output dir with a fresh loader (`setURLs`), closed and reset (`setDefault`) when the simulation ends, so classes from earlier simulations don't pile up. The loader delegates to the server classpath first, so without the unique package the class compiled into the server (e.g. `it.unibo.scafi.CircleFormation`) would be simulated instead of the submitted code.
 3. **Simulate**: `resources/swarmSimulation.yml` is a template. `{{ }}` gets the fully qualified program class and `{{EXPORT_DIR}}` the CSV export path. It runs with an `AfterTime(3000)` terminator. The `timeout` tool argument is parsed but not currently enforced.
 4. **Plot**: the CSV exporter output (`experiment.csv`, space-delimited, time + node positions) is parsed and plotted with nspl into a grid of snapshots. The PNG is returned base64-encoded as MCP `ImageContent`, so the agent LLM must be multimodal.
@@ -45,7 +45,7 @@ Client and server transports have to match. All three use Streamable HTTP on the
 ### Swarm model
 
 - `it.unibo.scafi`: `BaseFormation` (ScaFi `AggregateProgram` + blocks) → `ShapeFormation` (leader election, local goal, collision avoidance) → concrete shapes that override `calculateSuggestion` (Circle, Line, Square, V, ...). Programs write an `Actuation` (`Rotation`/`Forward`/`NoOp`/`Stop`) to the `actuation` molecule.
-- `it.unibo.alchemist.action`: custom Alchemist extensions. `DirectionalRobotProperty` holds the node orientation, and `DifferentialRobotMovement` reads the `actuation` molecule and moves the node. The YAML template wires both, plus the `leader`, `stabilityThreshold` and `collisionArea` molecules the programs `sense`.
+- `it.unibo.alchemist.action`: custom Alchemist extensions. `DirectionalRobotProperty` (a `Capability`, listed under `capabilities` in the YAML) holds the node orientation, and `DifferentialRobotMovement` (an `AbstractMoveNode` built from the `NodeReaction` hosting it, inside a `GenericReaction`) reads the `actuation` molecule and moves the node. The YAML template wires both, plus the `leader`, `stabilityThreshold` and `collisionArea` molecules the programs `sense`.
 - Runtime needs `-Dsun.java2d.opengl=false` (set in `forkArgs` and in Docker).
 
 ## Workflow
