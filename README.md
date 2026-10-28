@@ -39,3 +39,31 @@ The argument is the model name, and it selects the backend:
   (e.g. `export GOOGLE_API_KEY=...`);
 - any other name uses the local Ollama instance at `localhost:11434`: the model must already be available in Ollama
   (e.g. `ollama pull qwen3-vl:2b`).
+
+## Contributing
+
+Branch from `master` and open a pull request: `master` only accepts PRs with a green CI, merged with rebase or squash.
+
+### Git hooks
+
+The hooks live in `.githooks/` and are enabled by the first `./mill` command you run, which sets `core.hooksPath`:
+
+- `commit-msg` requires [Conventional Commits](https://www.conventionalcommits.org/): `type(scope)!: description`,
+  with type one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`;
+- `pre-commit` rejects the commit when the Scala sources are not formatted.
+
+CI runs the same checks on every pull request.
+
+### Formatting
+
+The rules are in `.scalafmt.conf`, so you don't need to know them: format the whole project with
+
+```bash
+./mill mill.scalalib.scalafmt/reformatAll
+```
+
+or let the editor format on save (both read `.scalafmt.conf`):
+
+- VS Code with Metals: add `"[scala]": { "editor.formatOnSave": true }` to the settings;
+- IntelliJ IDEA with the Scala plugin: set *Settings → Editor → Code Style → Scala → Formatter* to *Scalafmt*, then
+  enable *Reformat code* in *Settings → Tools → Actions on Save*.
