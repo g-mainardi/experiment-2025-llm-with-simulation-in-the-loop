@@ -1,33 +1,43 @@
 package it.unibo.alchemist.action
 
-import it.unibo.alchemist.model.{Node, NodeProperty}
+import it.unibo.alchemist.model.Node
+import it.unibo.alchemist.model.NodeProperty
 
 object DirectionalRobotProperty {
+
   val DefaultWheelBase: Double = 0.5 // meters
+
   val ZeroVelocity: Double = 0.0
+
 }
 
 class DirectionalRobotProperty[T](
-  node: Node[T], 
-  initialAngle: Double = 0.0,
-  val wheelBase: Double = DirectionalRobotProperty.DefaultWheelBase
+    node: Node[T],
+    initialAngle: Double = 0.0,
+    val wheelBase: Double = DirectionalRobotProperty.DefaultWheelBase
 ) extends NodeProperty[T] {
+
   import DirectionalRobotProperty._
+
   private val TwoWheels = 2.0
+
   private var leftWheelVelocity: Double = ZeroVelocity
+
   private var rightWheelVelocity: Double = ZeroVelocity
+
   private var orientationX: Double = math.cos(initialAngle)
+
   private var orientationY: Double = math.sin(initialAngle)
 
   override def getNode: Node[T] = node
 
-  override def cloneOnNewNode(node: Node[T]): NodeProperty[T] = 
+  override def cloneOnNewNode(node: Node[T]): NodeProperty[T] =
     new DirectionalRobotProperty[T](node, getAngle, wheelBase)
 
   def orientation: (Double, Double) = (orientationX, orientationY)
-  
+
   def getAngle: Double = math.atan2(orientationY, orientationX)
-  
+
   private def normalizeOrientation(): Unit = {
     val magnitude = math.sqrt(orientationX * orientationX + orientationY * orientationY)
     if (magnitude > 0) {
@@ -38,7 +48,7 @@ class DirectionalRobotProperty[T](
 
   def spinBy(angle: Double): Unit = {
     val currentAngle = getAngle
-    val newAngle = currentAngle + angle
+    val newAngle     = currentAngle + angle
     orientationX = math.cos(newAngle)
     orientationY = math.sin(newAngle)
     normalizeOrientation()
@@ -64,8 +74,9 @@ class DirectionalRobotProperty[T](
 
   def predictOrientation(deltaTime: Double): (Double, Double) = {
     val angularVelocity = getAngularVelocity
-    val currentAngle = getAngle
-    val newAngle = currentAngle + angularVelocity * deltaTime
+    val currentAngle    = getAngle
+    val newAngle        = currentAngle + angularVelocity * deltaTime
     (math.cos(newAngle), math.sin(newAngle))
   }
+
 }

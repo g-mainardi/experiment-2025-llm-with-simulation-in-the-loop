@@ -1,6 +1,7 @@
 package it.unibo.llm.mcp.server.utils
 
-import com.github.tototoshi.csv.{CSVReader, DefaultCSVFormat}
+import com.github.tototoshi.csv.CSVReader
+import com.github.tototoshi.csv.DefaultCSVFormat
 import it.unibo.alchemist.boundary.LoadAlchemist
 import it.unibo.alchemist.model.terminators.AfterTime
 import it.unibo.alchemist.model.times.DoubleTime
@@ -8,7 +9,8 @@ import org.kaikikm.threadresloader.ResourceLoader
 
 import java.io.File
 import java.net.URLClassLoader
-import java.nio.file.{Files, Path}
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.Base64
 import java.util.concurrent.atomic.AtomicLong
 import scala.concurrent.duration.Duration
@@ -16,7 +18,8 @@ import scala.io.Source
 import scala.jdk.OptionConverters.RichOptional
 import scala.reflect.internal.util.BatchSourceFile
 import scala.tools.nsc.reporters.StoreReporter
-import scala.tools.nsc.{Global, Settings}
+import scala.tools.nsc.Global
+import scala.tools.nsc.Settings
 
 object ScafiTestUtils {
 
@@ -27,7 +30,7 @@ object ScafiTestUtils {
   private val runCounter = new AtomicLong()
 
   def compileAndGetErrors(code: String): (Boolean, List[String]) = {
-    val tempDir = Files.createTempDirectory("scafi-compile-")
+    val tempDir  = Files.createTempDirectory("scafi-compile-")
     val settings = new Settings()
     settings.usejavacp.value = true
     settings.outputDirs.setSingleOutput(tempDir.toFile.toString)
@@ -39,22 +42,29 @@ object ScafiTestUtils {
   def simulateProgram(program: String, timeout: Duration): (Boolean, List[String], Option[String]) = {
     val tempDir = Files.createTempDirectory("scafi-simulate-")
 
-    val packageRegex = """(?m)^\s*package\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)""".r
+    val packageRegex   = """(?m)^\s*package\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)""".r
     val classNameRegex = """(?m)^\s*(?:.*?\s)?(?:case\s+)?class\s+([A-Za-z_]\w*)\b""".r
 
-    val packages = packageRegex.findAllMatchIn(program).toList
-    val className = classNameRegex.findFirstMatchIn(program).map(_.group(1)).getOrElse(
-      return (true, List("Simulation error: Could not find class definition in the provided code:\n\n" + program), None)
-    )
+    val packages  = packageRegex.findAllMatchIn(program).toList
+    val className = classNameRegex
+      .findFirstMatchIn(program)
+      .map(_.group(1))
+      .getOrElse(
+        return (
+          true,
+          List("Simulation error: Could not find class definition in the provided code:\n\n" + program),
+          None
+        )
+      )
     // Chained package clause: classes of the outer packages (e.g. ShapeFormation) stay visible.
     // It goes on the same line as the last clause, so error line numbers still match the submitted program.
-    val runPackage = s"run${runCounter.incrementAndGet()}"
+    val runPackage    = s"run${runCounter.incrementAndGet()}"
     val uniqueProgram = packages.lastOption match {
       case Some(last) => program.patch(last.end, s"; package $runPackage", 0)
-      case None => s"package $runPackage; $program"
+      case None       => s"package $runPackage; $program"
     }
     val fullPackage = (packages.map(_.group(1)) :+ runPackage).mkString(".")
-    val fqnClass = s"$fullPackage.$className"
+    val fqnClass    = s"$fullPackage.$className"
 
     val sourceFile = {
       val dest = tempDir.resolve(fullPackage.replace(".", File.separator) + s"${File.separator}$className.scala")
@@ -67,7 +77,7 @@ object ScafiTestUtils {
     settings.classpath.value = System.getProperty("java.class.path")
     settings.outputDirs.setSingleOutput(tempDir.toFile.toString)
 
-    val batch = new BatchSourceFile(sourceFile.toString, uniqueProgram)
+    val batch               = new BatchSourceFile(sourceFile.toString, uniqueProgram)
     val (hasErrors, errors) = compileSources(settings, List(batch))
     if (hasErrors) return (true, errors, None)
 
@@ -79,8 +89,10 @@ object ScafiTestUtils {
       ResourceLoader.classForName(fqnClass)
       logger.info(s"Simulating $fqnClass")
 
-      val exportDir = tempDir.resolve("export")
-      val simulationSpec = Source.fromResource("swarmSimulation.yml").mkString
+      val exportDir      = tempDir.resolve("export")
+      val simulationSpec = Source
+        .fromResource("swarmSimulation.yml")
+        .mkString
         .replace("{{ }}", fqnClass)
         .replace("{{EXPORT_DIR}}", exportDir.toAbsolutePath.toString)
       val simulationFile = Files.createTempFile(tempDir, "swarmSimulation", ".yml")
@@ -88,7 +100,7 @@ object ScafiTestUtils {
       Files.writeString(simulationFile, simulationSpec)
 
       val alchemistLoader = LoadAlchemist.from(simulationFile.toFile)
-      val simulation = alchemistLoader.getDefault
+      val simulation      = alchemistLoader.getDefault
       simulation.getEnvironment.addTerminator(new AfterTime(new DoubleTime(3000.0)))
       simulation.play()
       simulation.run()
@@ -99,7 +111,7 @@ object ScafiTestUtils {
       val pngBase64 = plotNodePositions(positions, exportDir)
 
       val containErrors = simulation.getError.isPresent
-      val errors = simulation.getError.toScala.toList.map(e => s"Simulation error: ${e.getMessage}")
+      val errors        = simulation.getError.toScala.toList.map(e => s"Simulation error: ${e.getMessage}")
       (containErrors, errors, Some(pngBase64))
     } finally {
       ResourceLoader.getClassLoader.asInstanceOf[URLClassLoader].close()
@@ -108,22 +120,29 @@ object ScafiTestUtils {
   }
 
   implicit object AlchemistFormat extends DefaultCSVFormat {
+
     override val delimiter: Char = ' '
+
   }
 
   private def loadCsvFromSimulation(exportDir: Path): NodePosition.TimeStampedNodesPositions = {
-    val csvFile = exportDir.resolve("experiment.csv")
-    val sanitizedContent = Files.readString(csvFile)
+    val csvFile          = exportDir.resolve("experiment.csv")
+    val sanitizedContent = Files
+      .readString(csvFile)
       .linesIterator
       .filterNot(_.startsWith("#"))
       .mkString("\n")
     val sanitizedFile = Files.writeString(csvFile, sanitizedContent)
-    val reader = CSVReader.open(sanitizedFile.toFile)
+    val reader        = CSVReader.open(sanitizedFile.toFile)
     reader.iterator.map { row =>
-      val time = row.head.toDouble
-      val position = row.tail.grouped(2).zipWithIndex.map {
-        case (List(x, y), index) => index.toString -> NodePosition(x.toDouble, y.toDouble)
-      }.toMap
+      val time     = row.head.toDouble
+      val position = row.tail
+        .grouped(2)
+        .zipWithIndex
+        .map { case (List(x, y), index) =>
+          index.toString -> NodePosition(x.toDouble, y.toDouble)
+        }
+        .toMap
       time -> position
     }.toMap
   }
@@ -131,20 +150,20 @@ object ScafiTestUtils {
   private def plotNodePositions(positions: NodePosition.TimeStampedNodesPositions, outputFile: Path): String = {
     import org.nspl._
     import org.nspl.awtrenderer._
-    val plots = positions.toSeq.sortBy(_._1).map {
-      case (time, nodePosition) =>
-        val data = nodePosition.map { case (_, position) => (position.x, position.y) }.toSeq
-        val minX = data.map(_._1).min
-        val maxX = data.map(_._1).max
-        val minY = data.map(_._2).min
-        val maxY = data.map(_._2).max
-        xyplot(data)(par
+    val plots = positions.toSeq.sortBy(_._1).map { case (time, nodePosition) =>
+      val data = nodePosition.map { case (_, position) => (position.x, position.y) }.toSeq
+      val minX = data.map(_._1).min
+      val maxX = data.map(_._1).max
+      val minY = data.map(_._2).min
+      val maxY = data.map(_._2).max
+      xyplot(data)(
+        par
           .withMain("Node Positions at time " + time)
           .xlim(Some((minX - 0.5d) -> (maxX + 0.5d)))
           .ylim(Some((minY - 0.5d) -> (maxY + 0.5d)))
-        )
+      )
     }
-    val plot = sequence(plots, TableLayout(3))
+    val plot     = sequence(plots, TableLayout(3))
     val plotFile = outputFile.resolve("node_positions.png").toFile
     pngToFile(plotFile, plot.build, width = 1000)
     val byteArray = renderToByteArray(plot.build, width = 1000)
@@ -154,16 +173,15 @@ object ScafiTestUtils {
   private def compileSources(settings: Settings, sources: List[BatchSourceFile]): (Boolean, List[String]) = {
     val reporter = new StoreReporter(settings)
     val compiler = new Global(settings, reporter)
-    val run = new compiler.Run()
+    val run      = new compiler.Run()
 
     try {
       run.compileSources(sources)
-      val errors = reporter.infos.map(info =>
-        s"${info.severity}: ${info.msg} at line ${info.pos.line}"
-      ).toList
+      val errors = reporter.infos.map(info => s"${info.severity}: ${info.msg} at line ${info.pos.line}").toList
       (reporter.hasErrors, errors)
     } catch {
       case e: Exception => (true, List(s"Compilation error: ${e.getMessage}"))
     }
   }
+
 }
