@@ -51,9 +51,9 @@ Client and server transports have to match. All three use Streamable HTTP on the
 ## Workflow
 
 - `origin` (g-mainardi fork) is the reference repo, `upstream` (nicolasfara) is read-only. Run `gh` commands against the fork: PRs must target `g-mainardi/...:master`, not upstream.
-- GitHub flow: short-lived branches from `master` (`feat/…`, `fix/…`, `ci/…`, `exp/…`), merged by PR with rebase-merge (keeps atomic commits) or squash-merge (one commit, subject = PR title). A ruleset blocks direct pushes to `master` and requires the `success` check.
+- GitHub flow: short-lived branches from `master` (`feat/…`, `fix/…`, `ci/…`, `exp/…`), merged by PR with `scripts/ff-merge.sh [branch]`, not GitHub's merge button: GitHub's rebase-merge drops the commit signatures. The script rebases the branch on its base if needed (force-push, then wait for CI and run it again), checks that the PR is `CLEAN`, and fast-forwards the base onto it, so commits keep their SHA and signature and GitHub marks the PR merged. It then deletes the local branch and its `origin/` tracking ref; GitHub deletes the remote one (auto-delete on merge is on). A ruleset requires a PR and the `success` check on `master`, which this direct push satisfies. Dependent PRs go in a GitHub stack on the branch they build on, so they retarget to `master` once it's merged.
 - Commit messages follow Conventional Commits, checked by `.githooks/commit-msg` locally and by CI on every PR commit. `.githooks/pre-commit` rejects unformatted Scala sources. Any `./mill` run sets `core.hooksPath` to `.githooks` and `blame.ignoreRevsFile` to `.git-blame-ignore-revs` (see `build.mill`).
-- Formatting-only commits go in `.git-blame-ignore-revs`, with the SHA they get on `master` (rebase-merge rewrites them).
+- Formatting-only commits go in `.git-blame-ignore-revs`, with the SHA they get on `master` (a rebase by `ff-merge.sh` rewrites them).
 - CI (`.github/workflows/ci.yml`): scalafmt check, compile all modules, `SimulationProbe`, Docker build, commit check, aggregated in the `success` job.
 - Renovate (`renovate.json`) opens dependency PRs; `build.mill` and `.mill-version` are covered by regex managers.
 - Bugs and technical issues go in GitHub Issues.
