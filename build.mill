@@ -25,7 +25,7 @@ object mcp_server extends Common {
     mvn"it.unibo.alchemist:alchemist-swingui:42.3.7".excludeName("guava"),
     mvn"it.unibo.alchemist:alchemist-maps:42.3.7".excludeName("guava"),
     mvn"it.unibo.alchemist:alchemist-incarnation-scafi:42.3.7".excludeName("guava"),
-    mvn"it.unibo.scafi::scafi-core:1.6.0",
+    mvn"it.unibo.scafi::scafi-core:1.8.0",
     // Classloader Alchemist loads ScaFi programs with, used directly by ScafiTestUtils (runtime-only in Alchemist)
     mvn"org.danilopianini:thread-inheritable-resource-loader:0.3.8",
     mvn"io.modelcontextprotocol.sdk:mcp",
@@ -34,7 +34,7 @@ object mcp_server extends Common {
     // mvn"org.slf4j:slf4j-simple:2.0.9",
     mvn"org.springframework.ai:spring-ai-starter-mcp-server-webmvc", // .excludeName("slf4j-simple"),
     // Plotting
-    mvn"io.github.pityka::nspl-awt:0.11.1",
+    mvn"io.github.pityka::nspl-awt:0.19.0",
     // CSV
     mvn"com.github.tototoshi::scala-csv:2.0.0",
     // Logback
