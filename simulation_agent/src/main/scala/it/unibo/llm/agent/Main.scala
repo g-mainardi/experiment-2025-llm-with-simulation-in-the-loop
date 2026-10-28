@@ -5,30 +5,35 @@ import dev.langchain4j.model.ollama.OllamaChatModel
 import java.io.File
 
 object Main {
+
   private val logger = org.slf4j.LoggerFactory.getLogger("SimulationAgentMain")
+
   def main(args: Array[String]): Unit = {
     val modelName = args(0)
     logger.info("Starting simulation agent with with model: {}", modelName)
-    val temperature = 0.0
+    val temperature             = 0.0
     val logRequestsAndResponses = true
-    val model = if (modelName.toLowerCase.startsWith("gemini")) {
-      GoogleAiGeminiChatModel.builder()
-      .apiKey(System.getenv("GOOGLE_API_KEY"))
-      .modelName(modelName)
-      .temperature(temperature)
-      .logRequestsAndResponses(logRequestsAndResponses)
-      .build()
+    val model                   = if (modelName.toLowerCase.startsWith("gemini")) {
+      GoogleAiGeminiChatModel
+        .builder()
+        .apiKey(System.getenv("GOOGLE_API_KEY"))
+        .modelName(modelName)
+        .temperature(temperature)
+        .logRequestsAndResponses(logRequestsAndResponses)
+        .build()
     } else {
-      OllamaChatModel.builder()
-      .temperature(temperature)
-      .logRequests(logRequestsAndResponses)
-      .logResponses(logRequestsAndResponses)
-      .modelName(modelName)
-      .baseUrl("http://localhost:11434")
-      .build()
+      OllamaChatModel
+        .builder()
+        .temperature(temperature)
+        .logRequests(logRequestsAndResponses)
+        .logResponses(logRequestsAndResponses)
+        .modelName(modelName)
+        .baseUrl("http://localhost:11434")
+        .build()
     }
-    val task = new AgentTask(model,
-    """
+    val task = new AgentTask(
+      model,
+      """
         |Run the simulation of this:
         |package it.unibo.scafi
         |
@@ -77,8 +82,10 @@ object Main {
         |  val RADIUS_SENSING: String = "radius"
         |  val DEFAULTS: Map[String, Double] = Map(RADIUS_SENSING -> 0.6)
         |}
-        |""".stripMargin)
+        |""".stripMargin
+    )
     val result = task.execute()
     logger.info("Agent result: {}", result)
   }
+
 }

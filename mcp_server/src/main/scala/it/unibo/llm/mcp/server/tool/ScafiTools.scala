@@ -1,9 +1,15 @@
 package it.unibo.llm.mcp.server.tool
 
-import io.modelcontextprotocol.spec.McpSchema.{Annotations, CallToolResult, Content, ImageContent, Role}
+import io.modelcontextprotocol.spec.McpSchema.Annotations
+import io.modelcontextprotocol.spec.McpSchema.CallToolResult
+import io.modelcontextprotocol.spec.McpSchema.Content
+import io.modelcontextprotocol.spec.McpSchema.ImageContent
+import io.modelcontextprotocol.spec.McpSchema.Role
 import it.unibo.llm.mcp.server.utils.ScafiTestUtils
-import org.springaicommunity.mcp.annotation.{McpTool, McpToolParam}
-import org.springframework.stereotype.{Component, Service}
+import org.springaicommunity.mcp.annotation.McpTool
+import org.springaicommunity.mcp.annotation.McpToolParam
+import org.springframework.stereotype.Component
+import org.springframework.stereotype.Service
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.Duration
@@ -11,7 +17,9 @@ import scala.jdk.CollectionConverters._
 
 @Component
 class ScafiTools {
+
   private val logger = org.slf4j.LoggerFactory.getLogger(classOf[ScafiTools])
+
   @McpTool(
     name = "compile_scafi",
     description = "Compile and run a ScaFi program"
@@ -41,8 +49,9 @@ class ScafiTools {
       throw new IllegalStateException(errors.mkString("\n"))
     } else {
       val annotations = new Annotations(List(Role.USER).asJava, 1)
-      val image = new ImageContent(annotations, imageBase64.get, "image/png")
+      val image       = new ImageContent(annotations, imageBase64.get, "image/png")
       new CallToolResult(List[Content](image).asJava, false, null, Map.empty[String, AnyRef].asJava)
     }
   }
+
 }

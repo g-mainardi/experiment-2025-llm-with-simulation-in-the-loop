@@ -11,6 +11,8 @@ import org.springframework.context.annotation.Bean
 class SpringMain
 
 object SpringMain {
+
   def main(args: Array[String]): Unit =
     SpringApplication.run(classOf[SpringMain], args: _*)
+
 }
