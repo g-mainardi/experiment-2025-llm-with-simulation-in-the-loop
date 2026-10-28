@@ -64,7 +64,7 @@ object SimulationProbe {
     if (original.nonEmpty && original == modified)
       println("=> B1 and B2 produced the SAME PNG, byte for byte: the radius change was ignored")
     else if (original.nonEmpty && modified.nonEmpty) println("=> B1 and B2 produced DIFFERENT PNGs")
-    viaTool("B3 program that does not compile", broken, out.resolve("plot-not-compiling.png"))
+    val notCompiling = viaTool("B3 program that does not compile", broken, out.resolve("plot-not-compiling.png"))
     viaTool("B4 renamed class, radius 2.0", renamed, out.resolve("plot-renamed.png"))
     val radius3 = source.replace("RADIUS_SENSING -> 0.6", "RADIUS_SENSING -> 3.0")
     val third = viaTool("B5 same class, radius 3.0 (after B2)", radius3, out.resolve("plot-radius-3.0.png"))
@@ -94,7 +94,11 @@ object SimulationProbe {
     report(instrumentedRun(probe1Radius3, registerWithAlchemist = true))
     println("-- D4 new package probe2, radius 3.0")
     report(instrumentedRun(probe1Radius3.replace("package probe1", "package probe2"), registerWithAlchemist = true))
-    sys.exit(0)
+    // Exit code for CI: section B must show that each submission is simulated and compile errors are reported
+    val shas = Seq(original, modified, third)
+    val passed = shas.forall(_.nonEmpty) && shas.distinct.size == shas.size && notCompiling.isEmpty
+    println(s"\n== Result: ${if (passed) "PASSED" else "FAILED"}")
+    sys.exit(if (passed) 0 else 1)
   }
 
   /** Calls the tool code and saves the returned PNG; returns the PNG SHA-256 hash (empty on error). */
