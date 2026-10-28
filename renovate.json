@@ -19,7 +19,7 @@
       "customType": "regex",
       "managerFilePatterns": ["/^build\\.mill$/"],
       "matchStrings": ["mvn\"(?<groupId>[^:\"]+)::(?<artifactId>[^:\"]+):(?<currentValue>[^:\"$]+)\""],
-      "depNameTemplate": "{{{groupId}}}:{{{artifactId}}}_2.13",
+      "depNameTemplate": "{{{groupId}}}:{{{artifactId}}}_3",
       "datasourceTemplate": "maven"
     },
     {
