@@ -1,6 +1,5 @@
 package it.unibo.llm.mcp.server
 
-import it.unibo.alchemist.boundary.LoadAlchemist
 import it.unibo.llm.mcp.server.utils.ScafiTestUtils
 import org.kaikikm.threadresloader.ResourceLoader
 
@@ -11,7 +10,6 @@ import java.nio.file.Paths
 import java.security.MessageDigest
 import java.util.Base64
 import scala.concurrent.duration._
-import scala.io.Source
 import scala.jdk.CollectionConverters._
 import scala.jdk.StreamConverters._
 
@@ -23,16 +21,16 @@ import scala.jdk.StreamConverters._
   */
 object SimulationProbe {
 
-  // Scenario of swarmSimulation.yml and acceptance criterion thresholds (to be calibrated)
+  // Scenario defaults from swarmSimulation.yml and acceptance criterion thresholds (to be calibrated)
   private val LeaderId = 1
 
-  private val Radius = 0.6 // CircleFormation default
+  private val Radius = scenarioDefault("radius")
 
-  private val RadiusTolerance = 0.1 // = stabilityThreshold
+  private val RadiusTolerance = scenarioDefault("stabilityThreshold")
 
   private val AngularTolerance = 0.5 // max gap between consecutive angles, as a fraction of 2π/n
 
-  private val CollisionArea = 0.2
+  private val CollisionArea = scenarioDefault("collisionArea")
 
   private val ExportInterval = 10
 
@@ -65,7 +63,13 @@ object SimulationProbe {
 
     println("\n== B. Actual tool path: ScafiTestUtils.simulateProgram, as in simulate_code")
     val original = viaTool("B1 original", source, out.resolve("plot-original.png"))
-    val modified = viaTool("B2 same class, radius 2.0", bigRadius, out.resolve("plot-radius-2.0.png"))
+    // Through the scenario variable: checks the chain parameters → getWith → molecule → param
+    val modified = viaTool(
+      "B2 same class, radius 2.0 as parameter",
+      source,
+      out.resolve("plot-radius-2.0.png"),
+      Map("radius" -> 2.0)
+    )
     if (original.nonEmpty && original == modified)
       println("=> B1 and B2 produced the SAME PNG, byte for byte: the radius change was ignored")
     else if (original.nonEmpty && modified.nonEmpty) println("=> B1 and B2 produced DIFFERENT PNGs")
@@ -109,10 +113,11 @@ object SimulationProbe {
   }
 
   /** Calls the tool code and saves the returned PNG; returns the PNG SHA-256 hash (empty on error). */
-  private def viaTool(label: String, program: String, png: Path): String = {
+  private def viaTool(label: String, program: String, png: Path, parameters: Map[String, Any] = Map.empty): String = {
     println(s"-- $label")
     try {
-      val (ms, (failed, errors, image)) = time(ScafiTestUtils.simulateProgram(program, 60.seconds))
+      val (ms, (failed, errors, image)) =
+        time(ScafiTestUtils.simulateProgram(program, 60.seconds, parameters))
       if (failed) { println(s"error returned by the tool ($ms ms):\n  ${errors.mkString("\n  ")}"); "" }
       else {
         val bytes = Base64.getDecoder.decode(image.get)
@@ -147,18 +152,12 @@ object SimulationProbe {
     val loader = new URLClassLoader(Array(dir.toUri.toURL), parent)
     Thread.currentThread.setContextClassLoader(loader)
     try {
-      val loaded    = Class.forName(fqn, true, loader)
-      val origin    = Option(loaded.getProtectionDomain.getCodeSource).fold("unknown")(_.getLocation.toString)
-      val exportDir = dir.resolve("export")
-      val spec      = Source
-        .fromResource("swarmSimulation.yml")
-        .mkString
-        .replace("{{ }}", fqn)
-        .replace("{{EXPORT_DIR}}", exportDir.toString)
-        .replace("formula: endTime / 9", s"formula: $ExportInterval")
-      val yml            = Files.writeString(dir.resolve("probe.yml"), spec)
+      val loaded         = Class.forName(fqn, true, loader)
+      val origin         = Option(loaded.getProtectionDomain.getCodeSource).fold("unknown")(_.getLocation.toString)
+      val exportDir      = dir.resolve("export")
+      val denseExport    = s"variables: { exportInterval: { formula: $ExportInterval } }"
       val (simMs, error) = time {
-        val simulation = LoadAlchemist.from(yml.toFile).getDefault
+        val simulation = ScafiTestUtils.loadScenario(fqn, exportDir, List(denseExport)).getDefault
         simulation.play()
         simulation.run()
         Option(simulation.getError.getOrNull).map(_.toString)
@@ -221,6 +220,8 @@ object SimulationProbe {
       println(s"Acceptance criterion: ${if (pass) "PASSED" else "NOT passed"}")
     }
   }
+
+  private def scenarioDefault(name: String): Double = ScafiTestUtils.variables(name).getDefault.toString.toDouble
 
   private def time[A](block: => A): (Long, A) = {
     val start  = System.nanoTime()

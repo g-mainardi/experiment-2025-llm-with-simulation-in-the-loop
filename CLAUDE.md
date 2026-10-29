@@ -30,7 +30,7 @@ docker compose up                         # server via server.Dockerfile
 
 Three Mill modules (`build.mill`):
 
-- **`mcp_server`**: MCP server exposing two tools. `ServerMain` → `ScafiMcpServer`, which uses the plain MCP Java SDK 2.x (Jackson 3, mapper from `McpJsonDefaults`) with a Streamable HTTP servlet transport on Jetty. Tool input schemas are JSON files in `resources/schemas/`. `Main.scala` just runs `swarmSimulationTest.yml` directly, for debugging.
+- **`mcp_server`**: MCP server exposing two tools. `ServerMain` → `ScafiMcpServer`, which uses the plain MCP Java SDK 2.x (Jackson 3, mapper from `McpJsonDefaults`) with a Streamable HTTP servlet transport on Jetty. Tool input schemas are JSON files in `resources/schemas/`. `Main.scala` runs the scenario with `CircleFormation` in the Alchemist GUI, slowed down, for debugging.
 - **`simulation_agent`**: Scala agent on LangChain4j 1.23: an `AiServices` assistant with the server's tools from `McpToolProvider`, which runs the tool loop. No dependency on `mcp_server`. Ollama models can't receive images in tool results (LangChain4j raises `UnsupportedFeatureException`), Gemini can.
 - **`simulation_agent_py`**: Python equivalent using `langchain-mcp-adapters`.
 
