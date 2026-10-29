@@ -28,9 +28,10 @@ class VFormation extends ShapeFormation() {
     }.toMap
   }
 
-  private def distanceBetweenNodes: Double = sense(VFormation.INTER_DISTANCE_SENSING)
+  private def distanceBetweenNodes: Double =
+    param(VFormation.INTER_DISTANCE_SENSING, VFormation.DEFAULTS(VFormation.INTER_DISTANCE_SENSING))
 
-  private def armAngle: Double = sense(VFormation.ANGLE_SENSING)
+  private def armAngle: Double = param(VFormation.ANGLE_SENSING, VFormation.DEFAULTS(VFormation.ANGLE_SENSING))
 
 }
 

@@ -32,7 +32,7 @@ class LineFormation extends ShapeFormation() {
   }
 
   private def distanceThreshold: Double =
-    node.getOrElse(LineFormation.INTER_DISTANCE_SENSING, LineFormation.DEFAULTS(LineFormation.INTER_DISTANCE_SENSING))
+    param(LineFormation.INTER_DISTANCE_SENSING, LineFormation.DEFAULTS(LineFormation.INTER_DISTANCE_SENSING))
 
 }
 

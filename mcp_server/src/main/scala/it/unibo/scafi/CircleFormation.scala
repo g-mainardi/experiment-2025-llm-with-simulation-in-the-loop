@@ -18,7 +18,7 @@ class CircleFormation extends ShapeFormation() {
   }
 
   private def radius: Double =
-    node.getOrElse(CircleFormation.RADIUS_SENSING, CircleFormation.DEFAULTS(CircleFormation.RADIUS_SENSING))
+    param(CircleFormation.RADIUS_SENSING, CircleFormation.DEFAULTS(CircleFormation.RADIUS_SENSING))
 
   private def removeDeviceFromId(id: Int, devices: List[(Int, (Double, Double))]): List[(Int, (Double, Double))] = {
     devices.filterNot { case (currentId, _) =>

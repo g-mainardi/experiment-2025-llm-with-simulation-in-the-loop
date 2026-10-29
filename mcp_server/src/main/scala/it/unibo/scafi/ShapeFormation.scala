@@ -9,9 +9,9 @@ import it.unibo.scafi.space.optimization.RichPoint3D
 
 abstract class ShapeFormation() extends BaseFormation {
 
-  private val repulsionStrength = 0.6
+  private def repulsionStrength: Double = param("repulsionStrength", 0.6)
 
-  private val maxRepulsion = 2
+  private def maxRepulsion: Double = param("maxRepulsion", 2)
 
   implicit class InternalRichPoint3D(p: Point3D) {
 

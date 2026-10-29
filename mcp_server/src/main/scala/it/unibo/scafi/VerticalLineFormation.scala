@@ -18,7 +18,10 @@ class VerticalLineFormation extends ShapeFormation() {
     }.toMap
   }
 
-  private def distanceBetweenNodes: Double = sense(VerticalLineFormation.INTER_DISTANCE_SENSING)
+  private def distanceBetweenNodes: Double = param(
+    VerticalLineFormation.INTER_DISTANCE_SENSING,
+    VerticalLineFormation.DEFAULTS(VerticalLineFormation.INTER_DISTANCE_SENSING)
+  )
 
 }
 
