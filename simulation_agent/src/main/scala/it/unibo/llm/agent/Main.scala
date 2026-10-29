@@ -42,6 +42,8 @@ object Main {
       """
         |Run the simulation of this ScaFi program. The tools compile programs as Scala 3, so any code you write must be
         |Scala 3: Scala 2 procedure syntax (`def f() { ... }`) and symbol literals (`'foo`) do not compile.
+        |`simulate_code` also accepts `parameters` to change the scenario (e.g. number of robots, radius); its
+        |description lists the variables with their defaults and allowed values.
         |
         |package it.unibo.scafi
         |
