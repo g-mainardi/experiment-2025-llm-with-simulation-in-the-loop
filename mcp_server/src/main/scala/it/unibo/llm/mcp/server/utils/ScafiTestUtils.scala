@@ -10,8 +10,6 @@ import dotty.tools.dotc.reporting.HideNonSensicalMessages
 import dotty.tools.dotc.reporting.Reporter
 import dotty.tools.dotc.reporting.UniqueMessagePositions
 import it.unibo.alchemist.boundary.LoadAlchemist
-import it.unibo.alchemist.model.terminators.AfterTime
-import it.unibo.alchemist.model.times.DoubleTime
 import org.kaikikm.threadresloader.ResourceLoader
 
 import java.net.URLClassLoader
@@ -23,6 +21,7 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import scala.io.Source
 import scala.jdk.OptionConverters.RichOptional
+import scala.jdk.StreamConverters._
 
 object ScafiTestUtils {
 
@@ -83,7 +82,6 @@ object ScafiTestUtils {
 
       val alchemistLoader = LoadAlchemist.from(simulationFile.toFile)
       val simulation      = alchemistLoader.getDefault
-      simulation.getEnvironment.addTerminator(new AfterTime(new DoubleTime(3000.0)))
       simulation.play()
       simulation.run()
 
@@ -108,7 +106,8 @@ object ScafiTestUtils {
   }
 
   private def loadCsvFromSimulation(exportDir: Path): NodePosition.TimeStampedNodesPositions = {
-    val csvFile          = exportDir.resolve("experiment.csv")
+    // The exporter appends the variable values to the file name: the export dir holds just this file
+    val csvFile          = Files.list(exportDir).toScala(List).find(_.toString.endsWith(".csv")).get
     val sanitizedContent = Files
       .readString(csvFile)
       .linesIterator

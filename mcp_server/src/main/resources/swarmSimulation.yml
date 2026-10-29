@@ -1,8 +1,38 @@
 incarnation: scafi
 
+# LinearVariable: [default, min, max, step]; ArbitraryVariable: [default, [allowed values]]
+# The server fills {{ }} (program class) and {{EXPORT_DIR}}: not variables, because the CSV exporter puts every variable
+# value in the file name
+variables:
+  # Scenario
+  side: &side { type: LinearVariable, parameters: [ 4, 2, 8, 1 ] }
+  spacing: &spacing { type: LinearVariable, parameters: [ 1, 0.5, 2, 0.5 ] }
+  jitter: &jitter { type: LinearVariable, parameters: [ 0, 0, 0.5, 0.1 ] }
+  commRange: &commRange { type: ArbitraryVariable, parameters: [ 5, [ 2, 5, 10 ] ] }
+  speed: &speed { type: ArbitraryVariable, parameters: [ 0.0015, [ 0.0015 ] ] }
+  seed: &seed { type: LinearVariable, parameters: [ 0, 0, 99, 1 ] }
+  endTime: &endTime { type: ArbitraryVariable, parameters: [ 3000, [ 3000 ] ] }
+  # Molecules the programs sense
+  stabilityThreshold: &stabilityThreshold { type: LinearVariable, parameters: [ 0.1, 0.05, 0.5, 0.05 ] }
+  collisionArea: &collisionArea { type: LinearVariable, parameters: [ 0.2, 0.1, 0.5, 0.05 ] }
+  radius: &radius { type: LinearVariable, parameters: [ 0.6, 0.2, 3, 0.1 ] }
+  # Derived. Grid excludes its end: side points per row, whatever the rounding of side * spacing
+  gridEnd: &gridEnd
+    formula: (side - 0.5) * spacing
+  exportInterval: &exportInterval
+    formula: endTime / 9
+
+seeds:
+  scenario: *seed
+  simulation: *seed
+
+terminate:
+  - type: AfterTime
+    parameters: [ *endTime ]
+
 network-model:
   type: ConnectWithinDistance
-  parameters: [ 5 ]
+  parameters: [ *commRange ]
 
 _constants:
   retentionTime: &retentionTime 25.0
@@ -19,7 +49,7 @@ _move: &move
     type: GenericReaction
     actions:
       - type: DifferentialRobotMovement
-        parameters: [ "actuation", 0.0015, 0.5 ]
+        parameters: [ "actuation", *speed, 0.5 ]
 
 #monitors:
 # - type: SwingGUI
@@ -37,7 +67,8 @@ environment:
 
 deployments:
   - type: Grid
-    parameters: [ 0, 0, 4, 4, 1, 1 ]
+    # start, end, step, random displacement
+    parameters: [ 0, 0, *gridEnd, *gridEnd, *spacing, *spacing, *jitter, *jitter ]
     programs:
       - *program
       - *move
@@ -47,9 +78,11 @@ deployments:
       - molecule: leader
         concentration: 1
       - molecule: stabilityThreshold
-        concentration: 0.1
+        concentration: *stabilityThreshold
       - molecule: collisionArea
-        concentration: 0.2
+        concentration: *collisionArea
+      - molecule: radius
+        concentration: *radius
     capabilities:
       - type: DirectionalRobotProperty
         parameters: [ 0, 0.1 ]
@@ -58,7 +91,7 @@ export:
   - type: CSVExporter
     parameters:
       fileNameRoot: "experiment"
-      interval: 330
+      interval: *exportInterval
       exportPath: "{{EXPORT_DIR}}"
     data:
       - time
