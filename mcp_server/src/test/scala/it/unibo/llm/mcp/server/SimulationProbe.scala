@@ -1,8 +1,6 @@
 package it.unibo.llm.mcp.server
 
 import it.unibo.alchemist.boundary.LoadAlchemist
-import it.unibo.alchemist.model.terminators.AfterTime
-import it.unibo.alchemist.model.times.DoubleTime
 import it.unibo.llm.mcp.server.utils.ScafiTestUtils
 import org.kaikikm.threadresloader.ResourceLoader
 
@@ -15,6 +13,7 @@ import java.util.Base64
 import scala.concurrent.duration._
 import scala.io.Source
 import scala.jdk.CollectionConverters._
+import scala.jdk.StreamConverters._
 
 /** Measures the `simulate_code` pipeline, computes the circle acceptance metrics and checks which code is actually
   * simulated.
@@ -35,8 +34,6 @@ object SimulationProbe {
 
   private val CollisionArea = 0.2
 
-  private val EndTime = 3000.0
-
   private val ExportInterval = 10
 
   private type Positions = IndexedSeq[(Double, Double)]
@@ -55,7 +52,8 @@ object SimulationProbe {
     val source = Files.readString(Paths.get(args(0)))
     val out    = args.lift(1).map(Paths.get(_)).getOrElse(Files.createTempDirectory("probe-evidence"))
     Files.createDirectories(out)
-    val bigRadius = source.replace("RADIUS_SENSING -> 0.6", "RADIUS_SENSING -> 2.0")
+    // The scenario sets the radius molecule, so the default in the source has no effect: change the formula instead
+    val bigRadius = source.replace("* radius", "* 2.0")
     val renamed   = bigRadius.replace("CircleFormation", "ProbeCircleFormation")
     val broken    = source.replace("division * (i + 1)", "division * \"one\"")
     println(s"Java ${System.getProperty("java.version")}, output in $out")
@@ -73,7 +71,7 @@ object SimulationProbe {
     else if (original.nonEmpty && modified.nonEmpty) println("=> B1 and B2 produced DIFFERENT PNGs")
     val notCompiling = viaTool("B3 program that does not compile", broken, out.resolve("plot-not-compiling.png"))
     viaTool("B4 renamed class, radius 2.0", renamed, out.resolve("plot-renamed.png"))
-    val radius3 = source.replace("RADIUS_SENSING -> 0.6", "RADIUS_SENSING -> 3.0")
+    val radius3 = source.replace("* radius", "* 3.0")
     val third   = viaTool("B5 same class, radius 3.0 (after B2)", radius3, out.resolve("plot-radius-3.0.png"))
     if (third.nonEmpty && third == modified)
       println("=> B5 same as B2: the class of the previous simulation was reused")
@@ -98,7 +96,7 @@ object SimulationProbe {
       bigRadius.replaceFirst("(?m)^package it\\.unibo\\.scafi\\s*$", "package it.unibo.scafi\npackage probe1")
     report(instrumentedRun(uniquePackage, registerWithAlchemist = true))
     // addURL accumulates: does a second run with the same package still see the class of the first one?
-    val probe1Radius3 = uniquePackage.replace("RADIUS_SENSING -> 2.0", "RADIUS_SENSING -> 3.0")
+    val probe1Radius3 = uniquePackage.replace("* 2.0", "* 3.0")
     println("-- D3 same package probe1 reused, radius 3.0 (expected ~3.0 without contamination)")
     report(instrumentedRun(probe1Radius3, registerWithAlchemist = true))
     println("-- D4 new package probe2, radius 3.0")
@@ -157,21 +155,20 @@ object SimulationProbe {
         .mkString
         .replace("{{ }}", fqn)
         .replace("{{EXPORT_DIR}}", exportDir.toString)
-        .replace("interval: 330", s"interval: $ExportInterval")
+        .replace("formula: endTime / 9", s"formula: $ExportInterval")
       val yml            = Files.writeString(dir.resolve("probe.yml"), spec)
       val (simMs, error) = time {
         val simulation = LoadAlchemist.from(yml.toFile).getDefault
-        simulation.getEnvironment.addTerminator(new AfterTime(new DoubleTime(EndTime)))
         simulation.play()
         simulation.run()
         Option(simulation.getError.getOrNull).map(_.toString)
       }
-      val csv     = exportDir.resolve("experiment.csv")
+      val csv     = Option.when(Files.exists(exportDir))(Files.list(exportDir).toScala(List)).toList.flatten
       val samples =
-        if (!Files.exists(csv)) Nil
+        if (csv.isEmpty) Nil
         else
           Files
-            .readAllLines(csv)
+            .readAllLines(csv.head)
             .asScala
             .toList
             .filterNot(line => line.startsWith("#") || line.isBlank)
