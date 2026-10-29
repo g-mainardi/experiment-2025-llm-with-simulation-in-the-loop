@@ -22,6 +22,7 @@ docker compose up                         # server via server.Dockerfile
 ```
 
 - Model name starting with `gemini` uses Google AI (needs `GOOGLE_API_KEY`, kept in `.env`); anything else goes to Ollama at `localhost:11434`.
+- Agent logs (logback, `simulation_agent/src/main/resources/logback.xml`): the terminal shows INFO, i.e. each tool call with its arguments, the tool result and the final answer; `/tmp/simulation_agent.log` gets everything at DEBUG, including the raw MCP and model HTTP traffic, and is overwritten at each run.
 - The agent's task prompt is hardcoded in `simulation_agent/.../Main.scala`, not passed as an argument.
 - Formatting: scalafmt (`.scalafmt.conf`, max 120 cols, Scala 3 dialect). `./mill mill.scalalib.scalafmt/reformatAll` formats, `checkFormatAll` checks.
 

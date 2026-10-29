@@ -1,0 +1,33 @@
+<configuration>
+  <!-- Terminal: the agent trace (tool calls, tool results, final answer) -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>INFO</level>
+    </filter>
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} %-5level %logger{0} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- File: everything at debug level, overwritten at each run -->
+  <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+    <file>/tmp/simulation_agent.log</file>
+    <append>false</append>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Raw MCP and model HTTP traffic (huge, base64 images included) only goes to the file -->
+  <logger name="MCP" additivity="false">
+    <appender-ref ref="FILE"/>
+  </logger>
+  <logger name="dev.langchain4j.http.client.log.LoggingHttpClient" additivity="false">
+    <appender-ref ref="FILE"/>
+  </logger>
+
+  <root level="DEBUG">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="FILE"/>
+  </root>
+</configuration>

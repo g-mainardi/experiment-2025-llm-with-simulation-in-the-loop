@@ -1,5 +1,6 @@
 package it.unibo.llm.agent
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import dev.langchain4j.data.message.ImageContent
 import dev.langchain4j.data.message.TextContent
 import dev.langchain4j.mcp.McpToolProvider
@@ -55,11 +56,28 @@ class AgentTask(model: ChatModel, prompt: String) {
     .toolResultConverter(ImageToolResultConverter)
     .build()
 
+  private val json = new ObjectMapper()
+
   // AiServices runs the tool loop: model -> MCP tool -> tool result back to the model, until a final answer
   private val assistant = AiServices
     .builder(classOf[Assistant])
     .chatModel(model)
     .toolProvider(McpToolProvider.builder().mcpClients(mcpClient).build())
+    .beforeToolExecution { e =>
+      // Arguments are JSON with escaped newlines: print each one as plain text, so the code is readable
+      val args = json.readTree(e.request().arguments()).properties().asScala.map { entry =>
+        s"\n--- ${entry.getKey}:\n${entry.getValue.asText()}"
+      }
+      logger.info("Calling {}{}", e.request().name(), args.mkString)
+    }
+    .afterToolExecution { e =>
+      val result = e.resultContents().asScala.map {
+        case text: TextContent   => text.text()
+        case image: ImageContent => s"<${image.image().mimeType()} image>"
+        case other               => other.toString
+      }
+      logger.info("{} returned{}:\n{}", e.request().name(), if (e.hasFailed) " an error" else "", result.mkString("\n"))
+    }
     .build()
 
   def execute(): String =
