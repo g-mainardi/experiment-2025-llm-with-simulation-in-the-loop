@@ -28,7 +28,8 @@ class SquareFormation extends ShapeFormation() {
     }.toMap
   }
 
-  private def distanceBetweenNodes: Double = sense(SquareFormation.INTER_DISTANCE_SENSING)
+  private def distanceBetweenNodes: Double =
+    param(SquareFormation.INTER_DISTANCE_SENSING, SquareFormation.DEFAULTS(SquareFormation.INTER_DISTANCE_SENSING))
 
 }
 
