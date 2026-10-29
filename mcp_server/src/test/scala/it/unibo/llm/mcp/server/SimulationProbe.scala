@@ -1,8 +1,5 @@
 package it.unibo.llm.mcp.server
 
-import it.unibo.alchemist.boundary.LoadAlchemist
-import it.unibo.alchemist.model.terminators.AfterTime
-import it.unibo.alchemist.model.times.DoubleTime
 import it.unibo.llm.mcp.server.utils.ScafiTestUtils
 import org.kaikikm.threadresloader.ResourceLoader
 
@@ -13,8 +10,8 @@ import java.nio.file.Paths
 import java.security.MessageDigest
 import java.util.Base64
 import scala.concurrent.duration._
-import scala.io.Source
 import scala.jdk.CollectionConverters._
+import scala.jdk.StreamConverters._
 
 /** Measures the `simulate_code` pipeline, computes the circle acceptance metrics and checks which code is actually
   * simulated.
@@ -24,18 +21,16 @@ import scala.jdk.CollectionConverters._
   */
 object SimulationProbe {
 
-  // Scenario of swarmSimulation.yml and acceptance criterion thresholds (to be calibrated)
+  // Scenario defaults from swarmSimulation.yml and acceptance criterion thresholds (to be calibrated)
   private val LeaderId = 1
 
-  private val Radius = 0.6 // CircleFormation default
+  private val Radius = scenarioDefault("radius")
 
-  private val RadiusTolerance = 0.1 // = stabilityThreshold
+  private val RadiusTolerance = scenarioDefault("stabilityThreshold")
 
   private val AngularTolerance = 0.5 // max gap between consecutive angles, as a fraction of 2π/n
 
-  private val CollisionArea = 0.2
-
-  private val EndTime = 3000.0
+  private val CollisionArea = scenarioDefault("collisionArea")
 
   private val ExportInterval = 10
 
@@ -55,7 +50,8 @@ object SimulationProbe {
     val source = Files.readString(Paths.get(args(0)))
     val out    = args.lift(1).map(Paths.get(_)).getOrElse(Files.createTempDirectory("probe-evidence"))
     Files.createDirectories(out)
-    val bigRadius = source.replace("RADIUS_SENSING -> 0.6", "RADIUS_SENSING -> 2.0")
+    // The scenario sets the radius molecule, so the default in the source has no effect: change the formula instead
+    val bigRadius = source.replace("* radius", "* 2.0")
     val renamed   = bigRadius.replace("CircleFormation", "ProbeCircleFormation")
     val broken    = source.replace("division * (i + 1)", "division * \"one\"")
     println(s"Java ${System.getProperty("java.version")}, output in $out")
@@ -67,13 +63,19 @@ object SimulationProbe {
 
     println("\n== B. Actual tool path: ScafiTestUtils.simulateProgram, as in simulate_code")
     val original = viaTool("B1 original", source, out.resolve("plot-original.png"))
-    val modified = viaTool("B2 same class, radius 2.0", bigRadius, out.resolve("plot-radius-2.0.png"))
+    // Through the scenario variable: checks the chain parameters → getWith → molecule → param
+    val modified = viaTool(
+      "B2 same class, radius 2.0 as parameter",
+      source,
+      out.resolve("plot-radius-2.0.png"),
+      Map("radius" -> 2.0)
+    )
     if (original.nonEmpty && original == modified)
       println("=> B1 and B2 produced the SAME PNG, byte for byte: the radius change was ignored")
     else if (original.nonEmpty && modified.nonEmpty) println("=> B1 and B2 produced DIFFERENT PNGs")
     val notCompiling = viaTool("B3 program that does not compile", broken, out.resolve("plot-not-compiling.png"))
     viaTool("B4 renamed class, radius 2.0", renamed, out.resolve("plot-renamed.png"))
-    val radius3 = source.replace("RADIUS_SENSING -> 0.6", "RADIUS_SENSING -> 3.0")
+    val radius3 = source.replace("* radius", "* 3.0")
     val third   = viaTool("B5 same class, radius 3.0 (after B2)", radius3, out.resolve("plot-radius-3.0.png"))
     if (third.nonEmpty && third == modified)
       println("=> B5 same as B2: the class of the previous simulation was reused")
@@ -98,7 +100,7 @@ object SimulationProbe {
       bigRadius.replaceFirst("(?m)^package it\\.unibo\\.scafi\\s*$", "package it.unibo.scafi\npackage probe1")
     report(instrumentedRun(uniquePackage, registerWithAlchemist = true))
     // addURL accumulates: does a second run with the same package still see the class of the first one?
-    val probe1Radius3 = uniquePackage.replace("RADIUS_SENSING -> 2.0", "RADIUS_SENSING -> 3.0")
+    val probe1Radius3 = uniquePackage.replace("* 2.0", "* 3.0")
     println("-- D3 same package probe1 reused, radius 3.0 (expected ~3.0 without contamination)")
     report(instrumentedRun(probe1Radius3, registerWithAlchemist = true))
     println("-- D4 new package probe2, radius 3.0")
@@ -111,10 +113,11 @@ object SimulationProbe {
   }
 
   /** Calls the tool code and saves the returned PNG; returns the PNG SHA-256 hash (empty on error). */
-  private def viaTool(label: String, program: String, png: Path): String = {
+  private def viaTool(label: String, program: String, png: Path, parameters: Map[String, Any] = Map.empty): String = {
     println(s"-- $label")
     try {
-      val (ms, (failed, errors, image)) = time(ScafiTestUtils.simulateProgram(program, 60.seconds))
+      val (ms, (failed, errors, image)) =
+        time(ScafiTestUtils.simulateProgram(program, 60.seconds, parameters))
       if (failed) { println(s"error returned by the tool ($ms ms):\n  ${errors.mkString("\n  ")}"); "" }
       else {
         val bytes = Base64.getDecoder.decode(image.get)
@@ -149,29 +152,22 @@ object SimulationProbe {
     val loader = new URLClassLoader(Array(dir.toUri.toURL), parent)
     Thread.currentThread.setContextClassLoader(loader)
     try {
-      val loaded    = Class.forName(fqn, true, loader)
-      val origin    = Option(loaded.getProtectionDomain.getCodeSource).fold("unknown")(_.getLocation.toString)
-      val exportDir = dir.resolve("export")
-      val spec      = Source
-        .fromResource("swarmSimulation.yml")
-        .mkString
-        .replace("{{ }}", fqn)
-        .replace("{{EXPORT_DIR}}", exportDir.toString)
-        .replace("interval: 330", s"interval: $ExportInterval")
-      val yml            = Files.writeString(dir.resolve("probe.yml"), spec)
+      val loaded         = Class.forName(fqn, true, loader)
+      val origin         = Option(loaded.getProtectionDomain.getCodeSource).fold("unknown")(_.getLocation.toString)
+      val exportDir      = dir.resolve("export")
+      val denseExport    = s"variables: { exportInterval: { formula: $ExportInterval } }"
       val (simMs, error) = time {
-        val simulation = LoadAlchemist.from(yml.toFile).getDefault
-        simulation.getEnvironment.addTerminator(new AfterTime(new DoubleTime(EndTime)))
+        val simulation = ScafiTestUtils.loadScenario(fqn, exportDir, List(denseExport)).getDefault
         simulation.play()
         simulation.run()
         Option(simulation.getError.getOrNull).map(_.toString)
       }
-      val csv     = exportDir.resolve("experiment.csv")
+      val csv     = Option.when(Files.exists(exportDir))(Files.list(exportDir).toScala(List)).toList.flatten
       val samples =
-        if (!Files.exists(csv)) Nil
+        if (csv.isEmpty) Nil
         else
           Files
-            .readAllLines(csv)
+            .readAllLines(csv.head)
             .asScala
             .toList
             .filterNot(line => line.startsWith("#") || line.isBlank)
@@ -224,6 +220,8 @@ object SimulationProbe {
       println(s"Acceptance criterion: ${if (pass) "PASSED" else "NOT passed"}")
     }
   }
+
+  private def scenarioDefault(name: String): Double = ScafiTestUtils.variables(name).getDefault.toString.toDouble
 
   private def time[A](block: => A): (Long, A) = {
     val start  = System.nanoTime()

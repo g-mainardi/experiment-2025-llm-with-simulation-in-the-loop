@@ -24,4 +24,7 @@ trait BaseFormation extends AggregateProgram with StandardSensors with BlockG wi
   def rotate90(position: (Double, Double)): (Double, Double) =
     (-position._2, position._1)
 
+  /** The `name` molecule if the scenario defines it, otherwise `default`. */
+  def param(name: String, default: Double): Double = node.getOrElse(name, default)
+
 }

@@ -58,7 +58,10 @@ class ScafiMcpServer {
       Tool
         .builder("simulate_code", mapper, simulationSchema)
         .title("Code Simulation Tool")
-        .description("A tool to simulate ScaFi programs and check for runtime errors.")
+        .description(
+          "A tool to simulate ScaFi programs and check for runtime errors. The optional parameters set these " +
+            s"scenario variables:\n${ScafiTestUtils.variablesDescription}"
+        )
         .build()
     )
     .callHandler(handleSimulation)
@@ -82,9 +85,12 @@ class ScafiMcpServer {
           return Mono.just(textResult(s"Invalid timeout format: $timeout", isError = true))
       }
 
+    val parameters = Option(request.arguments().get("parameters"))
+      .fold(Map.empty[String, Any])(_.asInstanceOf[java.util.Map[String, Any]].asScala.toMap)
+
     // Any failure goes back as a tool error the model can read, not as a protocol error
     val (hasErrors, errors, imageBase64) =
-      try ScafiTestUtils.simulateProgram(program, durationTimeout)
+      try ScafiTestUtils.simulateProgram(program, durationTimeout, parameters)
       catch {
         case NonFatal(e) =>
           logger.warn("Simulation failed", e)
@@ -95,8 +101,10 @@ class ScafiMcpServer {
     } else {
       val annotations = Annotations.builder().audience(List(Role.USER).asJava).priority(1.0).build()
       val image       = ImageContent.builder(imageBase64.get, "image/png").annotations(annotations).build()
-      val res         = CallToolResult.builder().addContent(image).isError(false).build()
-      Mono.just(res)
+      // Notes that don't make the run fail, e.g. a timeout
+      val builder = CallToolResult.builder().addContent(image).isError(false)
+      errors.foreach(builder.addTextContent)
+      Mono.just(builder.build())
     }
   }
 
