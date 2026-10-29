@@ -9,6 +9,11 @@
       "type": "integer",
       "description": "The maximum time (in seconds) to run the simulation",
       "default": 60
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Scenario variables to override, by name (listed in the tool description); the others keep their default",
+      "additionalProperties": { "type": "number" }
     }
   },
   "required": ["program"]
