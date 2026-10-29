@@ -10,16 +10,23 @@ import dotty.tools.dotc.reporting.HideNonSensicalMessages
 import dotty.tools.dotc.reporting.Reporter
 import dotty.tools.dotc.reporting.UniqueMessagePositions
 import it.unibo.alchemist.boundary.LoadAlchemist
+import it.unibo.alchemist.boundary.Loader
+import it.unibo.alchemist.boundary.Variable
+import it.unibo.alchemist.boundary.variables.LinearVariable
 import org.kaikikm.threadresloader.ResourceLoader
 
 import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Base64
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import scala.io.Source
+import scala.jdk.CollectionConverters._
 import scala.jdk.OptionConverters.RichOptional
 import scala.jdk.StreamConverters._
 
@@ -31,10 +38,59 @@ object ScafiTestUtils {
   // server (e.g. it.unibo.scafi.CircleFormation) would win: each simulation uses a new package.
   private val runCounter = new AtomicLong()
 
+  // Stops simulations that outlive their timeout
+  private val timer = Executors.newSingleThreadScheduledExecutor { task =>
+    val thread = new Thread(task, "simulation-timeout")
+    thread.setDaemon(true)
+    thread
+  }
+
+  /** Scenario variables the tool accepts as parameters, read from the YAML. */
+  lazy val variables: Map[String, Variable[?]] =
+    LoadAlchemist.from(getClass.getResource("/swarmSimulation.yml")).getVariables.asScala.toMap
+
+  /** One line per variable: name, default and allowed values. */
+  lazy val variablesDescription: String = variables.toList
+    .sortBy(_._1)
+    .map { case (name, variable) =>
+      val allowed = variable match {
+        case linear: LinearVariable => s"from ${linear.getMin} to ${linear.getMax} in steps of ${linear.getStep}"
+        case other                  => s"one of ${values(other).mkString(", ")}"
+      }
+      s"- $name: default ${variable.getDefault}, $allowed"
+    }
+    .mkString("\n")
+
+  private def values(variable: Variable[?]): List[Double] = variable.stream.toScala(List).map(_.toString.toDouble)
+
+  private def isAllowed(variable: Variable[?], value: Double): Boolean = variable match {
+    case linear: LinearVariable =>
+      val steps = (value - linear.getMin) / linear.getStep
+      value >= linear.getMin && value <= linear.getMax && math.abs(steps - steps.round) < 1e-9
+    case other => values(other).contains(value)
+  }
+
   def compileAndGetErrors(code: String): (Boolean, List[String]) =
     compile(code, Files.createTempDirectory("scafi-compile-"))
 
-  def simulateProgram(program: String, timeout: Duration): (Boolean, List[String], Option[String]) = {
+  def simulateProgram(
+      program: String,
+      timeout: Duration,
+      parameters: Map[String, Any] = Map.empty
+  ): (Boolean, List[String], Option[String]) = {
+    // getWith only rejects unknown names: out of range values would silently change the scenario
+    val invalid = parameters.filter {
+      case (name, value: Number) => !variables.get(name).exists(isAllowed(_, value.doubleValue))
+      case _                     => true
+    }
+    if (invalid.nonEmpty)
+      return (
+        true,
+        List(s"Invalid parameters: ${invalid.mkString(", ")}. Scenario variables:\n$variablesDescription"),
+        None
+      )
+    val overrides = parameters.collect { case (name, value: Number) => name -> value.doubleValue }
+
     val tempDir = Files.createTempDirectory("scafi-simulate-")
 
     val packageRegex   = """(?m)^\s*package\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)""".r
@@ -81,9 +137,18 @@ object ScafiTestUtils {
       Files.writeString(simulationFile, simulationSpec)
 
       val alchemistLoader = LoadAlchemist.from(simulationFile.toFile)
-      val simulation      = alchemistLoader.getDefault
-      simulation.play()
-      simulation.run()
+      val simulation      = alchemistLoader.getWith(overrides.asJava)
+      // run() stays on this thread: RunScafiProgram resolves the program through this thread's ResourceLoader
+      val timedOut = new AtomicBoolean()
+      val stopper  = timer.schedule(
+        () => { timedOut.set(true); simulation.terminate() },
+        timeout.toMillis,
+        TimeUnit.MILLISECONDS
+      )
+      try {
+        simulation.play()
+        simulation.run()
+      } finally stopper.cancel(false)
 
       val positions = loadCsvFromSimulation(exportDir)
       logger.info(s"Simulation completed. Loaded positions for ${positions.size} timestamps.")
@@ -92,7 +157,11 @@ object ScafiTestUtils {
 
       val containErrors = simulation.getError.isSome
       val errors        = Option(simulation.getError.getOrNull).toList.map(e => s"Simulation error: ${e.getMessage}")
-      (containErrors, errors, Some(pngBase64))
+      val stopped       = Option.when(timedOut.get)(
+        s"Simulation stopped by the ${timeout.toSeconds} s timeout at time ${simulation.getTime.getCurrent}: " +
+          "the plot shows the run up to there"
+      )
+      (containErrors, errors ++ stopped, Some(pngBase64))
     } finally {
       ResourceLoader.getClassLoader.asInstanceOf[URLClassLoader].close()
       ResourceLoader.setDefault()
@@ -144,7 +213,7 @@ object ScafiTestUtils {
           .ylim(Some((minY - 0.5d) -> (maxY + 0.5d)))
       )
     }
-    val plot     = sequence(plots, TableLayout(3))
+    val plot     = sequence(plots, TableLayout(math.ceil(math.sqrt(plots.size)).toInt))
     val plotFile = outputFile.resolve("node_positions.png").toFile
     pngToFile(plotFile, plot.build, width = 1000)
     val byteArray = renderToByteArray(plot.build, width = 1000)
