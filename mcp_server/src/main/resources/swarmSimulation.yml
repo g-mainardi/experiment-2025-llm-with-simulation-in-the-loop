@@ -51,11 +51,6 @@ _move: &move
       - type: DifferentialRobotMovement
         parameters: [ "actuation", *speed, 0.5 ]
 
-#monitors:
-# - type: SwingGUI
-#   parameters:
-#     graphics: effects/simulation.json
-
 launcher:
  parameters:
    batch: []

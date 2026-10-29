@@ -12,9 +12,11 @@ import dotty.tools.dotc.reporting.UniqueMessagePositions
 import it.unibo.alchemist.boundary.LoadAlchemist
 import it.unibo.alchemist.boundary.Loader
 import it.unibo.alchemist.boundary.Variable
+import it.unibo.alchemist.boundary.modelproviders.YamlProvider
 import it.unibo.alchemist.boundary.variables.LinearVariable
 import org.kaikikm.threadresloader.ResourceLoader
 
+import java.io.StringReader
 import java.net.URLClassLoader
 import java.nio.file.Files
 import java.nio.file.Path
@@ -68,6 +70,16 @@ object ScafiTestUtils {
       val steps = (value - linear.getMin) / linear.getStep
       value >= linear.getMin && value <= linear.getMax && math.abs(steps - steps.round) < 1e-9
     case other => values(other).contains(value)
+  }
+
+  /** The scenario with the program class and the export dir filled in, and YAML fragments merged on top. */
+  def loadScenario(programClass: String, exportDir: Path, overrides: List[String] = Nil): Loader = {
+    val spec = Source
+      .fromResource("swarmSimulation.yml")
+      .mkString
+      .replace("{{ }}", programClass)
+      .replace("{{EXPORT_DIR}}", exportDir.toAbsolutePath.toString)
+    LoadAlchemist.from(new StringReader(spec), YamlProvider.INSTANCE, overrides.asJava)
   }
 
   def compileAndGetErrors(code: String): (Boolean, List[String]) =
@@ -126,18 +138,8 @@ object ScafiTestUtils {
       ResourceLoader.classForName(fqnClass)
       logger.info(s"Simulating $fqnClass")
 
-      val exportDir      = tempDir.resolve("export")
-      val simulationSpec = Source
-        .fromResource("swarmSimulation.yml")
-        .mkString
-        .replace("{{ }}", fqnClass)
-        .replace("{{EXPORT_DIR}}", exportDir.toAbsolutePath.toString)
-      val simulationFile = Files.createTempFile(tempDir, "swarmSimulation", ".yml")
-
-      Files.writeString(simulationFile, simulationSpec)
-
-      val alchemistLoader = LoadAlchemist.from(simulationFile.toFile)
-      val simulation      = alchemistLoader.getWith(overrides.asJava)
+      val exportDir  = tempDir.resolve("export")
+      val simulation = loadScenario(fqnClass, exportDir).getWith(overrides.asJava)
       // run() stays on this thread: RunScafiProgram resolves the program through this thread's ResourceLoader
       val timedOut = new AtomicBoolean()
       val stopper  = timer.schedule(
