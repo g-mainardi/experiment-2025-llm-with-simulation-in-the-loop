@@ -14,16 +14,19 @@ object Main {
     val temperature             = 0.0
     val logRequestsAndResponses = true
     val model                   = if (modelName.toLowerCase.startsWith("gemini")) {
-      GoogleAiGeminiChatModel
-        .builder()
-        .apiKey(System.getenv("GOOGLE_API_KEY"))
-        .modelName(modelName)
-        .temperature(temperature)
-        // Gemini 3 rejects tool calls sent back without their thought signatures
-        .returnThinking(true)
-        .sendThinking(true)
-        .logRequestsAndResponses(logRequestsAndResponses)
-        .build()
+      new RetryingChatModel(
+        GoogleAiGeminiChatModel
+          .builder()
+          .apiKey(System.getenv("GOOGLE_API_KEY"))
+          .modelName(modelName)
+          .temperature(temperature)
+          // Gemini 3 rejects tool calls sent back without their thought signatures
+          .returnThinking(true)
+          .sendThinking(true)
+          .maxRetries(0) // RetryingChatModel retries instead
+          .logRequestsAndResponses(logRequestsAndResponses)
+          .build()
+      )
     } else {
       OllamaChatModel
         .builder()
@@ -89,8 +92,14 @@ object Main {
         |}
         |""".stripMargin
     )
-    val result = task.execute()
-    logger.info("Agent result: {}", result)
+    try logger.info("Agent result: {}", task.execute())
+    catch {
+      case e: Exception =>
+        val message = RetryingChatModel.geminiError(e).map(_.path("message").asText()).getOrElse(e.getMessage)
+        logger.error("Agent failed: {}", message)
+        logger.debug("Agent failure", e)
+        sys.exit(1)
+    }
   }
 
 }
