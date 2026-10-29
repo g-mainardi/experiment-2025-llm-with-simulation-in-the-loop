@@ -201,7 +201,7 @@ object ScafiTestUtils {
     import org.nspl._
     import org.nspl.awtrenderer._
     val plots = positions.toSeq.sortBy(_._1).map { case (time, nodePosition) =>
-      val data = nodePosition.map { case (_, position) => (position.x, position.y) }.toSeq
+      val data = nodePosition.values.map(position => (position.x, position.y)).toSeq
       val minX = data.map(_._1).min
       val maxX = data.map(_._1).max
       val minY = data.map(_._2).min
