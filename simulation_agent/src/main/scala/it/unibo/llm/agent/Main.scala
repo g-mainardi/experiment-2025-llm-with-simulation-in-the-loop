@@ -19,6 +19,9 @@ object Main {
         .apiKey(System.getenv("GOOGLE_API_KEY"))
         .modelName(modelName)
         .temperature(temperature)
+        // Gemini 3 rejects tool calls sent back without their thought signatures
+        .returnThinking(true)
+        .sendThinking(true)
         .logRequestsAndResponses(logRequestsAndResponses)
         .build()
     } else {
