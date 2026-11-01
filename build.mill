@@ -34,7 +34,7 @@ object mcp_server extends Common {
     // SLF4J binding; logback-classic, pulled in by Alchemist, is excluded above to keep it the only one
     mvn"org.slf4j:slf4j-simple:2.0.20",
     // Plotting
-    mvn"io.github.pityka::nspl-awt:0.19.0",
+    mvn"io.github.pityka::nspl-awt:0.20.0",
     // CSV
     mvn"com.github.tototoshi::scala-csv:2.0.0"
   )
