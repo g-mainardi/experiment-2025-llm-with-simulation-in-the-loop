@@ -18,12 +18,7 @@ gh pr checks "$branch"
 state=$(gh pr view "$branch" --json mergeStateStatus -q .mergeStateStatus)
 [ "$state" = CLEAN ] || { echo "PR not mergeable yet ($state)."; exit 1; }
 
-git switch "$base"
-git merge --ff-only "origin/$base"
-git merge --ff-only "$branch"
-git push origin "$base"
-
-# GitHub deletes the remote branch on merge, maybe not yet: drop the tracking ref without waiting for it.
-git branch -d "$branch"
-git branch -dr "origin/$branch"
-echo "Merged $branch into $base."
+# Push the branch head straight to the base: the server takes only a fast-forward, and no local switch to the
+# base is needed (it is checked out in the main worktree).
+git push origin "$branch:$base"
+echo "Merged $branch into $base. GitHub deletes the remote branch; clean up with scripts/remove-worktree.sh $branch"

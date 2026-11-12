@@ -1,0 +1,20 @@
+#!/bin/sh
+# Refuses to delete a remote branch that an open PR comes from or goes into: GitHub would close the PR.
+# Retarget or close the PR first. git passes "<local ref> <local sha> <remote ref> <remote sha>" per ref.
+fmt='.[] | "  #\(.number) \(.headRefName) → \(.baseRefName)"'
+status=0
+while read -r _ local_sha remote_ref _; do
+  case $local_sha in *[!0]*) continue ;; esac  # an all-zero sha marks a deletion
+  case $remote_ref in refs/heads/*) branch=${remote_ref#refs/heads/} ;; *) continue ;; esac
+  if ! prs=$(gh pr list --head "$branch" --json number,headRefName,baseRefName -q "$fmt" &&
+    gh pr list --base "$branch" --json number,headRefName,baseRefName -q "$fmt"); then
+    echo "✖ Could not check the open PRs of $branch with gh: not deleting it." >&2
+    status=1
+  elif [ -n "$prs" ]; then
+    echo "✖ $branch has open PRs, which GitHub would close if it were deleted:" >&2
+    echo "$prs" >&2
+    echo "  Retarget them (gh pr edit <n> --base master) or close them first." >&2
+    status=1
+  fi
+done
+exit $status
