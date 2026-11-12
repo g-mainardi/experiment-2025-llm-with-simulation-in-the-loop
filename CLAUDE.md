@@ -17,13 +17,13 @@ Build tool is Mill (`./mill`, version pinned in `.mill-version`). Scala 3.10.0, 
 java -jar out/mcp_server/assembly.dest/out.jar
 docker compose up                         # server via server.Dockerfile
 
-./mill simulation_agent.run gemini-3.5-flash-lite circle-simulate   # Scala agent: model, task id; server must already be running
+./mill simulation_agent.run gemini-3.5-flash-lite circle-control   # Scala agent: model, task id; server must already be running
 ./mill simulation_agent_py.run                   # Python agent (LangChain, Ollama qwen3-vl:2b)
 ```
 
 - Model name starting with `gemini` uses Google AI (needs `GOOGLE_API_KEY`, kept in `.env`); anything else goes to Ollama at `localhost:11434`.
 - Agent logs (logback, `simulation_agent/src/main/resources/logback.xml`): the terminal shows INFO, i.e. each tool call with its arguments, the tool result and the final answer; `/tmp/simulation_agent.log` gets everything at DEBUG, including the raw MCP and model HTTP traffic, and is overwritten at each run.
-- Agent tasks (`simulation_agent/.../Tasks.scala`): id, prompt, starting program and target formation. The model gets a common preamble (Scala 3, `parameters`), the task prompt and the starting program, read from `simulation_agent/src/main/resources/tasks/<id>.scala.txt` (the suffix keeps IDE and compiler from treating it as a source). An unknown id prints the list.
+- Agent tasks (`simulation_agent/.../Tasks.scala`): id, prompt, starting program and target formation. The model gets a common preamble (Scala 3, `parameters`), the task prompt and the starting program, read from `simulation_agent/src/main/resources/tasks/<id>.scala.txt` (the suffix keeps IDE and compiler from treating it as a source). An unknown id prints the list. `circle-control` starts from the correct `CircleFormation`, the `circle-bug-*` tasks from copies with one bug each and the same prompt, which does not reveal the bug.
 - Formatting: scalafmt (`.scalafmt.conf`, max 120 cols, Scala 3 dialect). `./mill mill.scalalib.scalafmt/reformatAll` formats, `checkFormatAll` checks.
 
 ## Architecture

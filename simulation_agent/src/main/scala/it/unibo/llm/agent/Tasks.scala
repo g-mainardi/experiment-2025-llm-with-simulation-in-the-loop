@@ -27,14 +27,23 @@ object Tasks {
       |`simulate_code` also accepts `parameters` to change the scenario (e.g. number of robots, radius); its
       |description lists the variables with their defaults and allowed values.""".stripMargin
 
-  val all: List[Task] = List(
-    Task(
-      "circle-simulate",
-      "Run the simulation of this ScaFi program.",
-      Some(program("circle-simulate")),
-      Target.Circle(0.6)
-    )
-  )
+  // Same prompt for the correct program and the broken ones: the prompt must not tell them apart
+  private val CirclePrompt =
+    """This ScaFi program should arrange the robot swarm in a circle around the leader. The goal, with the default
+      |scenario parameters:
+      |- every follower ends on a circle of radius 0.6 centred on the leader (the leader starts at (1, 0) and does not
+      |  move);
+      |- the followers are evenly spaced along the circle;
+      |- the robots do not collide: they keep about `collisionArea` (0.2) apart.
+      |Simulate the program with the default parameters and compare the last snapshot of the plot with the goal (each
+      |snapshot has its own axis scale: read the numbers on the axes). If they differ, change the program and simulate
+      |again, until the plot matches the goal. Meet the goal by changing the code, not the scenario `parameters`.
+      |Finally, report the final program in full and say what you changed and why, or that nothing needed changing.""".stripMargin
+
+  val all: List[Task] =
+    List("circle-control", "circle-bug-half", "circle-bug-maxby", "circle-bug-absolute").map { id =>
+      Task(id, CirclePrompt, Some(program(id)), Target.Circle(0.6))
+    }
 
   def byId(id: String): Option[Task] = all.find(_.id == id)
 
