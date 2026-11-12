@@ -1,0 +1,1 @@
+Stop as soon as the last snapshot of a simulation matches the goal: do not call any more tools to tidy, comment or double-check the program, and give your final answer. The program you report must be exactly the one you simulated last.

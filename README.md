@@ -44,7 +44,7 @@ With the MCP server running (see above):
 
 ```bash
 set -a; . ./.env; set +a   # Mill doesn't load .env
-./mill simulation_agent.run gemini-3.5-flash-lite circle-bug-half --pieces=scala3,parameters,classpath,api,simulate-first --max-round-trips=20
+./mill simulation_agent.run gemini-3.5-flash-lite circle-bug-half --pieces=scala3,parameters,classpath,api,simulate-first,stop --max-round-trips=20
 ```
 
 The two positional arguments are the model and the task; everything else is an optional `--name=value`:
