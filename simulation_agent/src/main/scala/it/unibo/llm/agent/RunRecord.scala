@@ -18,7 +18,7 @@ object RunRecord {
   /** Writes the record and returns its path. outcome is `answered`, `limit` or `error`. */
   def write(
       model: String,
-      temperature: Double,
+      temperature: Option[Double],
       maxRoundTrips: Int,
       task: String,
       pieces: List[String],
@@ -31,7 +31,7 @@ object RunRecord {
   ): Path = {
     val record = json.createObjectNode()
     record.put("model", model)
-    record.put("temperature", temperature)
+    record.put("temperature", temperature.map(Double.box).orNull)
     record.put("maxRoundTrips", maxRoundTrips)
     record.put("task", task)
     pieces.foreach(record.putArray("pieces").add)

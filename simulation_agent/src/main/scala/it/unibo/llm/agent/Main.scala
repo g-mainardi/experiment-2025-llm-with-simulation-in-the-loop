@@ -48,16 +48,18 @@ object Main {
       "Starting simulation agent with model {} on task {}, prompt pieces {}, at most {} round trips", modelName, taskId,
       pieces.mkString(","), maxRoundTrips
     )
-    val temperature             = 0.0
+    val gemini = modelName.toLowerCase.startsWith("gemini")
+    // Gemini 3.5 Flash-Lite and later ignore temperature, top_p and top_k, and Google asks to stop sending them
+    // (later generations will answer 400): the record says null, the model's own sampling
+    val temperature             = Option.when(!gemini)(0.0)
     val logRequestsAndResponses = true
     // Ollama goes through RetryingChatModel too, which counts requests and tokens for the run record
     val model = new RetryingChatModel(
-      if (modelName.toLowerCase.startsWith("gemini"))
+      if (gemini)
         GoogleAiGeminiChatModel
           .builder()
           .apiKey(System.getenv("GOOGLE_API_KEY"))
           .modelName(modelName)
-          .temperature(temperature)
           // Gemini 3 rejects tool calls sent back without their thought signatures
           .returnThinking(true)
           .sendThinking(true)
@@ -67,7 +69,7 @@ object Main {
       else
         OllamaChatModel
           .builder()
-          .temperature(temperature)
+          .temperature(temperature.get)
           .logRequests(logRequestsAndResponses)
           .logResponses(logRequestsAndResponses)
           .modelName(modelName)
