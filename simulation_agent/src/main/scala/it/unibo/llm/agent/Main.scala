@@ -3,6 +3,8 @@ package it.unibo.llm.agent
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel
 import dev.langchain4j.model.ollama.OllamaChatModel
 
+import java.time.OffsetDateTime
+
 object Main {
 
   private val logger = org.slf4j.LoggerFactory.getLogger("SimulationAgentMain")
@@ -48,8 +50,9 @@ object Main {
     )
     val temperature             = 0.0
     val logRequestsAndResponses = true
-    val model                   = if (modelName.toLowerCase.startsWith("gemini")) {
-      new RetryingChatModel(
+    // Ollama goes through RetryingChatModel too, which counts requests and tokens for the run record
+    val model = new RetryingChatModel(
+      if (modelName.toLowerCase.startsWith("gemini"))
         GoogleAiGeminiChatModel
           .builder()
           .apiKey(System.getenv("GOOGLE_API_KEY"))
@@ -61,28 +64,39 @@ object Main {
           .maxRetries(0) // RetryingChatModel retries instead
           .logRequestsAndResponses(logRequestsAndResponses)
           .build()
-      )
-    } else {
-      OllamaChatModel
-        .builder()
-        .temperature(temperature)
-        .logRequests(logRequestsAndResponses)
-        .logResponses(logRequestsAndResponses)
-        .modelName(modelName)
-        .baseUrl("http://localhost:11434")
-        .build()
-    }
-    // Inside the try: the MCP client connects when the task is created, and fails there if the server is down
-    try logger.info("Agent result: {}", new AgentTask(model, agentTask.fullPrompt(pieces), maxRoundTrips).execute())
-    catch {
-      case e: Exception if AgentTask.exceededRoundTrips(e) =>
-        logger.warn("Agent stopped: no final answer after {} tool calling round trips", maxRoundTrips)
-      case e: Exception =>
-        val message = RetryingChatModel.geminiError(e).map(_.path("message").asText()).getOrElse(e.getMessage)
-        logger.error("Agent failed: {}", message)
-        logger.debug("Agent failure", e)
-        sys.exit(1)
-    }
+      else
+        OllamaChatModel
+          .builder()
+          .temperature(temperature)
+          .logRequests(logRequestsAndResponses)
+          .logResponses(logRequestsAndResponses)
+          .modelName(modelName)
+          .baseUrl("http://localhost:11434")
+          .build()
+    )
+    val task                       = new AgentTask(model, agentTask.fullPrompt(pieces), maxRoundTrips)
+    val startedAt                  = OffsetDateTime.now()
+    val (outcome, answer, failure) =
+      try {
+        val answer = task.execute()
+        logger.info("Agent result: {}", answer)
+        ("answered", Some(answer), None)
+      } catch {
+        case e: Exception if AgentTask.exceededRoundTrips(e) =>
+          logger.warn("Agent stopped: no final answer after {} tool calling round trips", maxRoundTrips)
+          ("limit", None, None)
+        case e: Exception =>
+          val message = RetryingChatModel.geminiError(e).map(_.path("message").asText()).getOrElse(e.getMessage)
+          logger.error("Agent failed: {}", message)
+          logger.debug("Agent failure", e)
+          ("error", None, Some(message))
+      }
+    val record = RunRecord.write(
+      modelName, temperature, maxRoundTrips, taskId, pieces, startedAt, outcome, failure, answer, task.calls.toSeq,
+      model
+    )
+    logger.info("Run record: {} ({} model requests)", record, model.requests)
+    if (outcome == "error") sys.exit(1)
   }
 
 }

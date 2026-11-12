@@ -1,5 +1,6 @@
 package it.unibo.llm.agent
 
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import dev.langchain4j.data.message.ImageContent
 import dev.langchain4j.data.message.TextContent
@@ -15,6 +16,7 @@ import dev.langchain4j.service.tool.ToolExecutionResult
 
 import java.util.{List => JList}
 import java.util.{Map => JMap}
+import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters._
 
 trait Assistant {
@@ -42,6 +44,9 @@ object ImageToolResultConverter extends McpToolResultConverter {
 /** Runs the prompt with the server's tools, for at most maxRoundTrips rounds of tool calls (maxRoundTrips + 1 model
   * requests, without retries).
   */
+/** A tool call: tool name, JSON arguments, and whether the tool returned an error. */
+final case class ToolCall(name: String, arguments: JsonNode, failed: Boolean)
+
 class AgentTask(model: ChatModel, prompt: String, maxRoundTrips: Int) {
 
   private val logger = org.slf4j.LoggerFactory.getLogger("AgentTask")
@@ -50,21 +55,28 @@ class AgentTask(model: ChatModel, prompt: String, maxRoundTrips: Int) {
 
   logger.info("MCP Server Hostname: {}", hostname)
 
-  private val transport = new StreamableHttpMcpTransport.Builder()
-    .url("http://localhost:8080/mcp")
-    .logResponses(true)
-    .logRequests(true)
-    .build()
-
-  private val mcpClient = new DefaultMcpClient.Builder()
-    .transport(transport)
-    .toolResultConverter(ImageToolResultConverter)
-    .build()
-
   private val json = new ObjectMapper()
 
+  /** Tool calls of the run, in order: the hooks fill it, so it is there also when the run ends with an exception. */
+  val calls: ArrayBuffer[ToolCall] = ArrayBuffer.empty
+
+  // The MCP client connects when built: built here, a server that is down fails the run, not the task's creation
+  def execute(): String = {
+    val transport = new StreamableHttpMcpTransport.Builder()
+      .url("http://localhost:8080/mcp")
+      .logResponses(true)
+      .logRequests(true)
+      .build()
+    val mcpClient = new DefaultMcpClient.Builder()
+      .transport(transport)
+      .toolResultConverter(ImageToolResultConverter)
+      .build()
+    try assistant(mcpClient).chat(prompt)
+    finally mcpClient.close()
+  }
+
   // AiServices runs the tool loop: model -> MCP tool -> tool result back to the model, until a final answer
-  private val assistant = AiServices
+  private def assistant(mcpClient: DefaultMcpClient) = AiServices
     .builder(classOf[Assistant])
     .chatModel(model)
     .toolProvider(McpToolProvider.builder().mcpClients(mcpClient).build())
@@ -75,13 +87,17 @@ class AgentTask(model: ChatModel, prompt: String, maxRoundTrips: Int) {
     // visible to the LLM; anything else is an infrastructure failure (server down) and ends the run
     .toolExecutionErrorHandler(ToolExecutionErrorHandler.failInvocationUnlessVisibleToLlm())
     .beforeToolExecution { e =>
+      val arguments = json.readTree(e.request().arguments())
+      calls += ToolCall(e.request().name(), arguments, failed = false)
       // Arguments are JSON with escaped newlines: print each one as plain text, so the code is readable
-      val args = json.readTree(e.request().arguments()).properties().asScala.map { entry =>
+      val args = arguments.properties().asScala.map { entry =>
         s"\n--- ${entry.getKey}:\n${entry.getValue.asText()}"
       }
       logger.info("Calling {}{}", e.request().name(), args.mkString)
     }
     .afterToolExecution { e =>
+      // Tools run one at a time: this is the call the last beforeToolExecution added
+      calls(calls.length - 1) = calls.last.copy(failed = e.hasFailed)
       val result = e.resultContents().asScala.map {
         case text: TextContent   => text.text()
         case image: ImageContent => s"<${image.image().mimeType()} image>"
@@ -90,10 +106,6 @@ class AgentTask(model: ChatModel, prompt: String, maxRoundTrips: Int) {
       logger.info("{} returned{}:\n{}", e.request().name(), if (e.hasFailed) " an error" else "", result.mkString("\n"))
     }
     .build()
-
-  def execute(): String =
-    try assistant.chat(prompt)
-    finally mcpClient.close()
 
 }
 
