@@ -9,6 +9,8 @@ import dev.langchain4j.mcp.client.DefaultMcpClient
 import dev.langchain4j.mcp.client.McpToolResultConverter
 import dev.langchain4j.model.chat.ChatModel
 import dev.langchain4j.service.AiServices
+import dev.langchain4j.service.tool.ToolArgumentsErrorHandler
+import dev.langchain4j.service.tool.ToolExecutionErrorHandler
 import dev.langchain4j.service.tool.ToolExecutionResult
 
 import java.util.{List => JList}
@@ -37,7 +39,10 @@ object ImageToolResultConverter extends McpToolResultConverter {
 
 }
 
-class AgentTask(model: ChatModel, prompt: String) {
+/** Runs the prompt with the server's tools, for at most maxRoundTrips rounds of tool calls (maxRoundTrips + 1 model
+  * requests, without retries).
+  */
+class AgentTask(model: ChatModel, prompt: String, maxRoundTrips: Int) {
 
   private val logger = org.slf4j.LoggerFactory.getLogger("AgentTask")
 
@@ -63,6 +68,12 @@ class AgentTask(model: ChatModel, prompt: String) {
     .builder(classOf[Assistant])
     .chatModel(model)
     .toolProvider(McpToolProvider.builder().mcpClients(mcpClient).build())
+    .maxToolCallingRoundTrips(maxRoundTrips)
+    // Wrong arguments: the model reads why and can retry
+    .toolArgumentsErrorHandler(ToolArgumentsErrorHandler.sendExceptionMessageToLlm())
+    // Failed compilations and simulations are tool results with isError, which the MCP client turns into errors
+    // visible to the LLM; anything else is an infrastructure failure (server down) and ends the run
+    .toolExecutionErrorHandler(ToolExecutionErrorHandler.failInvocationUnlessVisibleToLlm())
     .beforeToolExecution { e =>
       // Arguments are JSON with escaped newlines: print each one as plain text, so the code is readable
       val args = json.readTree(e.request().arguments()).properties().asScala.map { entry =>
@@ -83,5 +94,15 @@ class AgentTask(model: ChatModel, prompt: String) {
   def execute(): String =
     try assistant.chat(prompt)
     finally mcpClient.close()
+
+}
+
+object AgentTask {
+
+  /** LangChain4j 1.23 throws a plain RuntimeException ("Something is wrong, exceeded N tool calling round trips
+    * (maxToolCallingRoundTrips)") when the model still calls tools after the last round trip.
+    */
+  def exceededRoundTrips(e: Throwable): Boolean =
+    e.getClass == classOf[RuntimeException] && String.valueOf(e.getMessage).contains("(maxToolCallingRoundTrips)")
 
 }
