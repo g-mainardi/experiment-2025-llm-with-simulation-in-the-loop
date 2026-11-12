@@ -1,0 +1,1 @@
+Before changing anything, simulate the program exactly as given and look at the plot.

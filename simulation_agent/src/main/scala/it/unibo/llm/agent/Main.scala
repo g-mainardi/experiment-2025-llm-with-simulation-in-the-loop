@@ -8,16 +8,32 @@ object Main {
   private val logger = org.slf4j.LoggerFactory.getLogger("SimulationAgentMain")
 
   def main(args: Array[String]): Unit = {
-    if (args.length != 2) {
-      logger.error("Usage: simulation_agent.run <model> <task id>; tasks: {}", Tasks.all.map(_.id).mkString(", "))
+    if (args.length < 2 || args.length > 3) {
+      logger.error(
+        "Usage: simulation_agent.run <model> <task id> [prompt pieces, comma separated]; tasks: {}",
+        Tasks.all.map(_.id).mkString(", ")
+      )
       sys.exit(2)
     }
-    val Array(modelName, taskId) = args
-    val agentTask                = Tasks.byId(taskId).getOrElse {
+    val modelName = args(0)
+    val taskId    = args(1)
+    val pieces    = args.lift(2).fold(Tasks.DefaultPieces)(_.split(",").map(_.trim).filter(_.nonEmpty).toList)
+    pieces.filterNot(Tasks.pieceExists) match {
+      case Nil     => ()
+      case missing =>
+        logger.error("No prompt piece {} in simulation_agent/src/main/resources/prompts", missing.mkString(", "))
+        sys.exit(2)
+    }
+    val agentTask = Tasks.byId(taskId).getOrElse {
       logger.error("Unknown task {}; tasks: {}", taskId, Tasks.all.map(_.id).mkString(", "))
       sys.exit(2)
     }
-    logger.info("Starting simulation agent with model {} on task {}", modelName, taskId)
+    logger.info(
+      "Starting simulation agent with model {} on task {}, prompt pieces {}",
+      modelName,
+      taskId,
+      pieces.mkString(",")
+    )
     val temperature             = 0.0
     val logRequestsAndResponses = true
     val model                   = if (modelName.toLowerCase.startsWith("gemini")) {
@@ -44,7 +60,7 @@ object Main {
         .baseUrl("http://localhost:11434")
         .build()
     }
-    val task = new AgentTask(model, agentTask.fullPrompt)
+    val task = new AgentTask(model, agentTask.fullPrompt(pieces))
     try logger.info("Agent result: {}", task.execute())
     catch {
       case e: Exception =>
