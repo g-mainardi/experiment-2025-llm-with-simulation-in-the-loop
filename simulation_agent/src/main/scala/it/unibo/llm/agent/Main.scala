@@ -9,7 +9,7 @@ object Main {
 
   private val logger = org.slf4j.LoggerFactory.getLogger("SimulationAgentMain")
 
-  private val DefaultMaxRoundTrips = 10
+  private val DefaultMaxRoundTrips = 20
 
   private val Usage =
     s"""Usage: simulation_agent.run <model> <task id> [--option=value ...]

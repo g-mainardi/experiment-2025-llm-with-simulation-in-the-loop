@@ -44,7 +44,7 @@ With the MCP server running (see above):
 
 ```bash
 set -a; . ./.env; set +a   # Mill doesn't load .env
-./mill simulation_agent.run gemini-3.5-flash-lite circle-bug-half --pieces=scala3,parameters,classpath,api,simulate-first --max-round-trips=10
+./mill simulation_agent.run gemini-3.5-flash-lite circle-bug-half --pieces=scala3,parameters,classpath,api,simulate-first --max-round-trips=20
 ```
 
 The two positional arguments are the model and the task; everything else is an optional `--name=value`:
@@ -52,7 +52,7 @@ The two positional arguments are the model and the task; everything else is an o
 - model: names starting with `gemini` use Google AI, and need `GOOGLE_API_KEY` (kept in `.env`, e.g. `GOOGLE_API_KEY=...`); use the most recent Flash Lite (`gemini-3.5-flash-lite` as of 2026-11). Any other name uses the local Ollama instance at `localhost:11434`, where the model must already be available (e.g. `ollama pull qwen3-vl:2b`).
 - task: `circle-control` starts from a correct circle formation program, `circle-bug-half`, `circle-bug-maxby` and `circle-bug-absolute` from copies with one bug each, behind the same goal. Tasks are listed in `simulation_agent/src/main/scala/it/unibo/llm/agent/Tasks.scala`.
 - `--pieces`: the prompt pieces added after the task's goal, comma separated, from `simulation_agent/src/main/resources/prompts/<name>.txt` (default `scala3,parameters`).
-- `--max-round-trips`: rounds of tool calls before the run stops without a final answer (default 10, i.e. at most 11 model requests).
+- `--max-round-trips`: rounds of tool calls before the run stops without a final answer (default 20, i.e. at most 21 model requests).
 
 The terminal shows each tool call, its result and the final answer; `/tmp/simulation_agent.log` has the full debug log. Each run also writes a JSON record to `runs/` with outcome (`answered`, `limit` or `error`), tool calls, final program and cost; its fields are described in `CLAUDE.md`. An unknown task, piece or option prints the usage.
 
