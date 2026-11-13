@@ -1,0 +1,1 @@
+You can compile programs with `compile_code` but not run them. Check by reasoning on the code whether the program meets the goal; if it does not, change it. Compile the program before reporting it and fix any compilation error: the program you report must be exactly the one you compiled last.

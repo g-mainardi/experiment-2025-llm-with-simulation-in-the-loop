@@ -1,1 +1,1 @@
-The tools compile programs as Scala 3, so any code you write must be Scala 3: Scala 2 procedure syntax (`def f() { ... }`) and symbol literals (`'foo`) do not compile.
+Programs are compiled as Scala 3, so any code you write must be Scala 3: Scala 2 procedure syntax (`def f() { ... }`) and symbol literals (`'foo`) do not compile.

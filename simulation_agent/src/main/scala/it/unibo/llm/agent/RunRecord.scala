@@ -15,19 +15,37 @@ object RunRecord {
 
   private val fileTime = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
 
-  /** Writes the record and returns its path. outcome is `answered`, `limit` or `error`. */
+  // Every fenced block, so the closing fence of a ```text block is not taken for an opening one
+  private val codeBlock = "(?s)```([\\w+-]*)[ \\t]*\\r?\\n(.*?)```".r
+
+  private val classDefinition = "\\bclass\\s+\\w+".r
+
+  /** Without tools the program is only in the answer: its last code block tagged scala or untagged that defines a
+    * class, the full program the goal asks to report; the model often repeats the changed lines in a later block.
+    * Without such a block, the last code block.
+    */
+  def lastCodeBlock(answer: String): Option[String] = {
+    val blocks = codeBlock.findAllMatchIn(answer).filter(m => Set("", "scala")(m.group(1))).map(_.group(2)).toList
+    blocks.findLast(classDefinition.findFirstIn(_).isDefined).orElse(blocks.lastOption)
+  }
+
+  /** Writes the record to `path` (default `runs/<start time>-<task>-<model>.json`, unique only to the second: parallel
+    * runs pass their own) and returns it. outcome is `answered`, `limit` or `error`.
+    */
   def write(
       model: String,
       temperature: Option[Double],
       maxRoundTrips: Int,
       task: Task,
       pieces: List[String],
+      condition: String,
       startedAt: OffsetDateTime,
       outcome: String,
       error: Option[String],
       answer: Option[String],
       calls: Seq[ToolCall],
-      cost: RetryingChatModel
+      cost: RetryingChatModel,
+      path: Option[Path]
   ): Path = {
     val record = json.createObjectNode()
     record.put("model", model)
@@ -40,7 +58,7 @@ object RunRecord {
       case Target.Circle(radius) => target.put("shape", "circle").put("radius", radius)
     }
     pieces.foreach(record.putArray("pieces").add)
-    record.put("condition", "full")
+    record.put("condition", condition)
     record.put("startedAt", startedAt.toString)
     record.put("durationSeconds", Duration.between(startedAt, OffsetDateTime.now()).toMillis / 1000.0)
     record.put("outcome", outcome)
@@ -53,17 +71,20 @@ object RunRecord {
     record.put("simulateFailures", simulates.count(_.failed))
     val parameters = record.putArray("simulateParameters")
     simulates.foreach(call => parameters.add(Option(call.arguments.get("parameters")).getOrElse(json.nullNode())))
-    val finalCall = simulates.lastOption.orElse(compiles.lastOption)
-    record.put("finalProgram", finalCall.flatMap(c => Option(c.arguments.get("program"))).map(_.asText()).orNull)
+    val finalCall    = simulates.lastOption.orElse(compiles.lastOption)
+    val finalProgram =
+      if (condition == "none") answer.flatMap(lastCodeBlock)
+      else finalCall.flatMap(c => Option(c.arguments.get("program"))).map(_.asText())
+    record.put("finalProgram", finalProgram.orNull)
     record.put("answer", answer.orNull)
     record.put("inputTokens", cost.inputTokens)
     record.put("outputTokens", cost.outputTokens)
     record.put("modelRequests", cost.requests)
     record.put("retries", cost.retries)
-    val path = Path.of("runs", s"${startedAt.format(fileTime)}-${task.id}-$model.json")
-    Files.createDirectories(path.getParent)
-    json.writerWithDefaultPrettyPrinter().writeValue(path.toFile, record)
-    path
+    val file = path.getOrElse(Path.of("runs", s"${startedAt.format(fileTime)}-${task.id}-$model.json"))
+    Files.createDirectories(file.toAbsolutePath.getParent)
+    json.writerWithDefaultPrettyPrinter().writeValue(file.toFile, record)
+    file
   }
 
 }

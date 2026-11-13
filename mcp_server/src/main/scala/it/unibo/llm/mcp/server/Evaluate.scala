@@ -6,6 +6,7 @@ import tools.jackson.databind.node.ObjectNode
 
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -85,7 +86,10 @@ object Evaluate {
         }
         firstFile.getOrElseUpdate(key, file)
         record.set("evaluation", evaluation.deepCopy())
-        json.writerWithDefaultPrettyPrinter().writeValue(file.toFile, record)
+        // Written aside and moved: an evaluation stopped halfway (the matrix runs it in a loop) never truncates a record
+        val partial = file.resolveSibling(s"${file.getFileName}.partial")
+        json.writerWithDefaultPrettyPrinter().writeValue(partial.toFile, record)
+        Files.move(partial, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
         val same = origin.fold("")(from => s" [same program as ${from.getFileName}]")
         println(s"${file.getFileName}: ${summary(evaluation)}$same")
       }
@@ -117,6 +121,8 @@ object Evaluate {
     criterion.put("steadyState", FormationOracle.SteadyState)
     criterion.put("endTime", FormationOracle.EndTime)
     criterion.put("jitter", FormationOracle.Jitter)
+    // Records judged on another number of seeds keep saying so, and their evaluations are not reused
+    criterion.put("seeds", FormationOracle.Seeds.size)
     evaluation.putArray("seeds")
     evaluation
   }
