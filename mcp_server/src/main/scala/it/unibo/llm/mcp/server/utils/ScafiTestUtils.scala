@@ -47,6 +47,11 @@ object ScafiTestUtils {
     thread
   }
 
+  // One compilation at a time: each one loads the whole server classpath, so twenty in parallel (Evaluate runs
+  // simulations on every core) took more than 3 GB and got the JVM killed. A compilation takes about 0.3 s, a
+  // simulation several seconds: the simulations still run in parallel.
+  private val compilerLock = new Object
+
   /** Scenario variables the tool accepts as parameters, read from the YAML. */
   lazy val variables: Map[String, Variable[?]] =
     LoadAlchemist.from(getClass.getResource("/swarmSimulation.yml")).getVariables.asScala.toMap
@@ -85,22 +90,42 @@ object ScafiTestUtils {
   def compileAndGetErrors(code: String): (Boolean, List[String]) =
     compile(code, Files.createTempDirectory("scafi-compile-"))
 
+  /** A finished simulation: node positions at each export, and notes such as a simulation error or the timeout. */
+  final case class Trace(
+      positions: NodePosition.TimeStampedNodesPositions,
+      failed: Boolean,
+      notes: List[String],
+      exportDir: Path
+  )
+
+  /** What `simulate_code` returns: whether it failed, the messages for the agent and the plot as base64 PNG. */
   def simulateProgram(
       program: String,
       timeout: Duration,
       parameters: Map[String, Any] = Map.empty
-  ): (Boolean, List[String], Option[String]) = {
+  ): (Boolean, List[String], Option[String]) =
+    simulate(program, timeout, parameters) match {
+      case Left(errors) => (true, errors, None)
+      case Right(trace) => (trace.failed, trace.notes, Some(plotNodePositions(trace.positions, trace.exportDir)))
+    }
+
+  /** Compiles `program` in a package of its own and simulates it with the scenario `parameters` and the YAML fragments
+    * `yaml` (not validated, e.g. a longer run or a denser export). Left holds the errors that prevented the simulation:
+    * invalid parameters, no class, compilation errors.
+    */
+  def simulate(
+      program: String,
+      timeout: Duration,
+      parameters: Map[String, Any] = Map.empty,
+      yaml: List[String] = Nil
+  ): Either[List[String], Trace] = {
     // getWith only rejects unknown names: out of range values would silently change the scenario
     val invalid = parameters.filter {
       case (name, value: Number) => !variables.get(name).exists(isAllowed(_, value.doubleValue))
       case _                     => true
     }
     if (invalid.nonEmpty)
-      return (
-        true,
-        List(s"Invalid parameters: ${invalid.mkString(", ")}. Scenario variables:\n$variablesDescription"),
-        None
-      )
+      return Left(List(s"Invalid parameters: ${invalid.mkString(", ")}. Scenario variables:\n$variablesDescription"))
     val overrides = parameters.collect { case (name, value: Number) => name -> value.doubleValue }
 
     val tempDir = Files.createTempDirectory("scafi-simulate-")
@@ -112,11 +137,7 @@ object ScafiTestUtils {
     val className = classNameRegex.findFirstMatchIn(program) match {
       case Some(m) => m.group(1)
       case None    =>
-        return (
-          true,
-          List("Simulation error: Could not find class definition in the provided code:\n\n" + program),
-          None
-        )
+        return Left(List("Simulation error: Could not find class definition in the provided code:\n\n" + program))
     }
     // Chained package clause: classes of the outer packages (e.g. ShapeFormation) stay visible.
     // It goes on the same line as the last clause, so error line numbers still match the submitted program.
@@ -128,7 +149,7 @@ object ScafiTestUtils {
     val fqnClass = (packages.map(_.group(1)) :+ runPackage :+ className).mkString(".")
 
     val (hasErrors, errors) = compile(uniqueProgram, tempDir)
-    if (hasErrors) return (true, errors, None)
+    if (hasErrors) return Left(errors)
 
     // RunScafiProgram loads the program through ResourceLoader (one classloader per thread), not through the
     // context classloader. A fresh loader per simulation, closed at the end: classes of earlier simulations
@@ -139,7 +160,7 @@ object ScafiTestUtils {
       logger.info(s"Simulating $fqnClass")
 
       val exportDir  = tempDir.resolve("export")
-      val simulation = loadScenario(fqnClass, exportDir).getWith(overrides.asJava)
+      val simulation = loadScenario(fqnClass, exportDir, yaml).getWith(overrides.asJava)
       // run() stays on this thread: RunScafiProgram resolves the program through this thread's ResourceLoader
       val timedOut = new AtomicBoolean()
       val stopper  = timer.schedule(
@@ -155,15 +176,13 @@ object ScafiTestUtils {
       val positions = loadCsvFromSimulation(exportDir)
       logger.info(s"Simulation completed. Loaded positions for ${positions.size} timestamps.")
       logger.debug(s"Positions data: $positions")
-      val pngBase64 = plotNodePositions(positions, exportDir)
 
-      val containErrors = simulation.getError.isSome
-      val errors        = Option(simulation.getError.getOrNull).toList.map(e => s"Simulation error: ${e.getMessage}")
-      val stopped       = Option.when(timedOut.get)(
+      val errors  = Option(simulation.getError.getOrNull).toList.map(e => s"Simulation error: ${e.getMessage}")
+      val stopped = Option.when(timedOut.get)(
         s"Simulation stopped by the ${timeout.toSeconds} s timeout at time ${simulation.getTime.getCurrent}: " +
           "the plot shows the run up to there"
       )
-      (containErrors, errors ++ stopped, Some(pngBase64))
+      Right(Trace(positions, simulation.getError.isSome, errors ++ stopped, exportDir))
     } finally {
       ResourceLoader.getClassLoader.asInstanceOf[URLClassLoader].close()
       ResourceLoader.setDefault()
@@ -243,7 +262,7 @@ object ScafiTestUtils {
     }
     try {
       val args = Array("-usejavacp", "-d", outDir.toString, source.toString)
-      (new Driver().process(args, reporter).hasErrors, messages.toList)
+      (compilerLock.synchronized(new Driver().process(args, reporter).hasErrors), messages.toList)
     } catch {
       case e: Exception => (true, List(s"Compilation error: ${e.getMessage}"))
     }

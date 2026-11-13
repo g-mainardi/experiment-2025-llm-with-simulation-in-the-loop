@@ -94,7 +94,7 @@ object Main {
           ("error", None, Some(message))
       }
     val record = RunRecord.write(
-      modelName, temperature, maxRoundTrips, taskId, pieces, startedAt, outcome, failure, answer, task.calls.toSeq,
+      modelName, temperature, maxRoundTrips, agentTask, pieces, startedAt, outcome, failure, answer, task.calls.toSeq,
       model
     )
     logger.info("Run record: {} ({} model requests)", record, model.requests)

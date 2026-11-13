@@ -56,6 +56,8 @@ The two positional arguments are the model and the task; everything else is an o
 
 The terminal shows each tool call, its result and the final answer; `/tmp/simulation_agent.log` has the full debug log. Each run also writes a JSON record to `runs/` with outcome (`answered`, `limit` or `error`), tool calls, final program and cost; its fields are described in `CLAUDE.md`. An unknown task, piece or option prints the usage.
 
+To judge whether the final program of each run really forms the circle, run `./mill mcp_server.runMain it.unibo.llm.mcp.server.Evaluate "$PWD/runs"`: it simulates each final program on ten seeds, with the scenario defaults and the target radius, and writes the verdict and the metrics in the record (`evaluation`, described in `CLAUDE.md`). It needs no model requests and the agent never sees its result. Simulations run in parallel (`--threads=n`, default half the logical cores) and identical programs are simulated once, with the same results as one at a time.
+
 ## Contributing
 
 Branch from `master` and open a pull request: `master` only accepts PRs with a green CI, merged with rebase or squash.
