@@ -16,8 +16,8 @@ import scala.jdk.StreamConverters._
 import scala.util.control.NonFatal
 
 /** Judges the final program of each agent run record with `FormationOracle` and writes the result in the record, as
-  * `evaluation` (documented in CLAUDE.md). The program is simulated in the oracle's scenario with the target radius,
-  * whatever `parameters` the agent chose.
+  * `evaluation` (documented in CLAUDE.md). The program is simulated in the oracle's scenario with the record's target
+  * (a circle and its radius, or a slot shape and its spacing), whatever `parameters` the agent chose.
   *
   * Usage: `./mill mcp_server.runMain it.unibo.llm.mcp.server.Evaluate <runs dir> [--force] [--threads=n]` (absolute
   * path). `--force` evaluates again the records that already have an evaluation, e.g. after a threshold change.
@@ -35,10 +35,12 @@ object Evaluate {
 
   private val defaultRadius = utils.ScafiTestUtils.variables("radius").getDefault.toString.toDouble
 
-  private type Run = Future[Either[List[String], FormationOracle.Circle]]
+  private type Run = Future[Either[List[String], ObjectNode]]
 
-  /** All an evaluation depends on: records with the same key get the same evaluation. */
-  final private case class Key(program: Option[String], radius: Double, shape: String)
+  /** All an evaluation depends on: records with the same key get the same evaluation. `size` is the radius of a circle,
+    * the spacing of a slot shape.
+    */
+  final private case class Key(program: Option[String], shape: String, size: Double)
 
   def main(args: Array[String]): Unit = {
     val (flags, positional) = args.toList.partition(_.startsWith("--"))
@@ -61,9 +63,9 @@ object Evaluate {
     val known = done.flatMap { case (file, record) =>
       val evaluation = record.get("evaluation")
       val key        = keyOf(record, file, quiet = true)
-      val current    = header(key.radius)
-      val reusable   = evaluation.get("reason").isNull && evaluation.get("radius") == current.get("radius") &&
-        evaluation.get("criterion") == current.get("criterion")
+      val current    = header(key)
+      val reusable   = evaluation.get("reason").isNull &&
+        List("radius", "spacing", "criterion").forall(field => evaluation.get(field) == current.get(field))
       Option.when(reusable)(key -> (file, evaluation))
     }.toMap
 
@@ -99,24 +101,31 @@ object Evaluate {
   }
 
   private def keyOf(record: JsonNode, file: Path, quiet: Boolean): Key = {
-    val target = Option(record.get("target")).filterNot(_.isNull)
-    val radius = target.fold {
-      if (!quiet) println(s"${file.getFileName}: no target in the record, using the scenario radius $defaultRadius")
-      defaultRadius
-    }(_.get("radius").asDouble())
+    val target  = Option(record.get("target")).filterNot(_.isNull)
     val program = Option(record.get("finalProgram")).filterNot(_.isNull).map(_.asString())
-    Key(program, radius, target.fold("circle")(_.get("shape").asString()))
+    target.fold {
+      if (!quiet) println(s"${file.getFileName}: no target in the record, using the scenario radius $defaultRadius")
+      Key(program, "circle", defaultRadius)
+    } { t =>
+      val shape = t.get("shape").asString()
+      Key(program, shape, t.path(if (shape == "circle") "radius" else "spacing").asDouble(0))
+    }
   }
 
   /** The fields that don't depend on the simulations, with a negative verdict and no seeds yet. */
-  private def header(radius: Double): ObjectNode = {
+  private def header(key: Key): ObjectNode = {
     val evaluation = json.createObjectNode()
     evaluation.put("passed", false)
     evaluation.putNull("reason")
-    evaluation.put("radius", radius)
+    val slots = FormationOracle.SlotShapes.contains(key.shape)
+    evaluation.put(if (slots) "spacing" else "radius", key.size)
     val criterion = evaluation.putObject("criterion")
-    criterion.put("maxRmse", FormationOracle.RmseTolerance * radius)
-    criterion.put("maxAngularGap", FormationOracle.AngularTolerance)
+    if (slots) criterion.put("maxHausdorff", FormationOracle.HausdorffTolerance * key.size)
+    else {
+      criterion.put("maxRmse", FormationOracle.RmseTolerance * key.size)
+      criterion.put("maxAngularGap", FormationOracle.AngularTolerance)
+    }
+    // Over the whole run for the circle, in the steady state for the slot shapes
     criterion.put("minDistance", FormationOracle.DistanceTolerance * FormationOracle.collisionArea)
     criterion.put("steadyState", FormationOracle.SteadyState)
     criterion.put("endTime", FormationOracle.EndTime)
@@ -129,19 +138,25 @@ object Evaluate {
 
   /** Starts the simulations of `key` on the pool. The returned function waits for them; it is computed once. */
   private def submit(key: Key, pool: ExecutorService): () => JsonNode = {
-    val evaluation             = header(key.radius)
-    val result: () => JsonNode = (key.shape, key.program) match {
-      case ("circle", Some(program)) =>
-        val runs = FormationOracle.Seeds.map { seed =>
-          seed -> pool.submit(new Callable[Either[List[String], FormationOracle.Circle]] {
-            override def call(): Either[List[String], FormationOracle.Circle] =
-              try FormationOracle.evaluate(program, key.radius, seed)
-              catch { case NonFatal(e) => Left(List(e.toString)) }
-          })
-        }
-        () => collect(evaluation, runs)
-      case ("circle", None) => () => evaluation.put("reason", "no final program")
-      case (shape, _)       => () => evaluation.put("reason", s"unsupported target shape $shape")
+    val evaluation                                                            = header(key)
+    def seeds(judge: Int => Either[List[String], ObjectNode]): () => JsonNode = {
+      val runs = FormationOracle.Seeds.map { seed =>
+        seed -> pool.submit(new Callable[Either[List[String], ObjectNode]] {
+          override def call(): Either[List[String], ObjectNode] =
+            try judge(seed)
+            catch { case NonFatal(e) => Left(List(e.toString)) }
+        })
+      }
+      () => collect(evaluation, runs)
+    }
+    val supported              = key.shape == "circle" || FormationOracle.SlotShapes.contains(key.shape)
+    val result: () => JsonNode = key.program match {
+      case _ if !supported                        => () => evaluation.put("reason", s"unsupported target shape ${key.shape}")
+      case None                                   => () => evaluation.put("reason", "no final program")
+      case Some(program) if key.shape == "circle" =>
+        seeds(seed => FormationOracle.evaluate(program, key.size, seed).map(circleMetrics(seed, _)))
+      case Some(program) =>
+        seeds(seed => FormationOracle.evaluateSlots(program, key.shape, key.size, seed).map(slotMetrics(seed, _)))
     }
     lazy val once = result()
     () => once
@@ -153,7 +168,7 @@ object Evaluate {
   private def collect(evaluation: ObjectNode, runs: List[(Int, Run)]): JsonNode = {
     val seeds  = evaluation.withArray("seeds")
     val reason = runs.iterator.map { case (seed, run) =>
-      run.get().map(circle => seeds.add(metrics(seed, circle))).left.map(e => s"seed $seed: ${e.mkString("\n")}")
+      run.get().map(seeds.add).left.map(e => s"seed $seed: ${e.mkString("\n")}")
     }.collectFirst { case Left(error) => error }
     reason match {
       case Some(text) =>
@@ -163,7 +178,7 @@ object Evaluate {
     }
   }
 
-  private def metrics(seed: Int, circle: FormationOracle.Circle): ObjectNode = {
+  private def circleMetrics(seed: Int, circle: FormationOracle.Circle): ObjectNode = {
     val node = json.createObjectNode()
     node.put("seed", seed)
     node.put("passed", circle.passed)
@@ -175,14 +190,27 @@ object Evaluate {
     node
   }
 
+  private def slotMetrics(seed: Int, slots: FormationOracle.Slots): ObjectNode = {
+    val node = json.createObjectNode()
+    node.put("seed", seed)
+    node.put("passed", slots.passed)
+    node.put("hausdorff", slots.hausdorff)
+    node.put("minDistance", slots.minDistance)
+    slots.convergence.fold(node.putNull("convergence"))(node.put("convergence", _))
+    node
+  }
+
   private def summary(evaluation: JsonNode): String = {
     val seeds                                              = evaluation.get("seeds").valueStream().toScala(List)
     def worst(field: String, pick: List[Double] => Double) =
       if (seeds.isEmpty) "-" else f"${pick(seeds.map(_.get(field).asDouble()))}%.3f"
     val verdict = if (evaluation.get("passed").asBoolean()) "PASSED" else "failed"
     val reason  = Option(evaluation.get("reason")).filterNot(_.isNull).fold("")(r => s" (${r.asString()})")
-    s"$verdict$reason; ${seeds.count(_.get("passed").asBoolean())}/${seeds.size} seeds passed, worst RMSE " +
-      s"${worst("rmse", _.max)}, angular gap ${worst("angularGap", _.max)}, min distance ${worst("minDistance", _.min)}"
+    val shape   =
+      if (evaluation.has("spacing")) s"Hausdorff ${worst("hausdorff", _.max)}"
+      else s"RMSE ${worst("rmse", _.max)}, angular gap ${worst("angularGap", _.max)}"
+    s"$verdict$reason; ${seeds.count(_.get("passed").asBoolean())}/${seeds.size} seeds passed, worst $shape, " +
+      s"min distance ${worst("minDistance", _.min)}"
   }
 
 }
