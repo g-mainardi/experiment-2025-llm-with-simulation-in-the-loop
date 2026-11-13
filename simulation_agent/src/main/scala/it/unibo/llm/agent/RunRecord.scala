@@ -20,7 +20,7 @@ object RunRecord {
       model: String,
       temperature: Option[Double],
       maxRoundTrips: Int,
-      task: String,
+      task: Task,
       pieces: List[String],
       startedAt: OffsetDateTime,
       outcome: String,
@@ -33,7 +33,12 @@ object RunRecord {
     record.put("model", model)
     record.put("temperature", temperature.map(Double.box).orNull)
     record.put("maxRoundTrips", maxRoundTrips)
-    record.put("task", task)
+    record.put("task", task.id)
+    // The offline evaluation needs the target and doesn't depend on this module
+    val target = record.putObject("target")
+    task.target match {
+      case Target.Circle(radius) => target.put("shape", "circle").put("radius", radius)
+    }
     pieces.foreach(record.putArray("pieces").add)
     record.put("condition", "full")
     record.put("startedAt", startedAt.toString)
@@ -55,7 +60,7 @@ object RunRecord {
     record.put("outputTokens", cost.outputTokens)
     record.put("modelRequests", cost.requests)
     record.put("retries", cost.retries)
-    val path = Path.of("runs", s"${startedAt.format(fileTime)}-$task-$model.json")
+    val path = Path.of("runs", s"${startedAt.format(fileTime)}-${task.id}-$model.json")
     Files.createDirectories(path.getParent)
     json.writerWithDefaultPrettyPrinter().writeValue(path.toFile, record)
     path
