@@ -58,6 +58,16 @@ object SimulationProbe {
       println("=> B5 same as B2: the class of the previous simulation was reused")
     else if (third.nonEmpty && third != original)
       println("=> B5 differs from B1 and B2: each simulation runs its own code")
+    // Issue #23: the class to simulate was the first word after `class`, also in comments, strings and a redefined
+    // ShapeFormation
+    val decoys = mutant(
+      source,
+      "class CircleFormation",
+      "/* class Dummy */\nval note = \"class Fake\"\n" +
+        "abstract class ShapeFormation extends it.unibo.scafi.ShapeFormation\nclass CircleFormation"
+    )
+    val decoyed =
+      viaTool("B6 class in a comment and a string, ShapeFormation redefined", decoys, out.resolve("plot-decoys.png"))
 
     println(
       s"\n== C. Oracle on the tool pipeline: seed $ProbeSeed, jitter ${FormationOracle.Jitter}, " +
@@ -79,8 +89,9 @@ object SimulationProbe {
     // Exit code for CI: section B must show that each submission is simulated and compile errors are reported,
     // section C that the oracle accepts the correct program and rejects the mutants
     val shas   = Seq(original, modified, third)
-    val passed = shas.forall(_.nonEmpty) && shas.distinct.size == shas.size && notCompiling.isEmpty &&
-      correctPasses && !mutantsPass.contains(true)
+    val passed =
+      shas.forall(_.nonEmpty) && shas.distinct.size == shas.size && notCompiling.isEmpty && decoyed.nonEmpty &&
+        correctPasses && !mutantsPass.contains(true)
     println(s"\n== Result: ${if (passed) "PASSED" else "FAILED"}")
     sys.exit(if (passed) 0 else 1)
   }
