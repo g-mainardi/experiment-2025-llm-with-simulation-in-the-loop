@@ -1,0 +1,1 @@
+`ShapeFormation` and the other classes of package `it.unibo.scafi` are already on the classpath of the tools: extend them, do not redefine them. A formation program is a class in package `it.unibo.scafi` that extends `ShapeFormation` and overrides `calculateSuggestion`.

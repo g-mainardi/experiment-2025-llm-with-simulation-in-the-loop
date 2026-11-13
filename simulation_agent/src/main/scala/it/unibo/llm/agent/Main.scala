@@ -2,15 +2,38 @@ package it.unibo.llm.agent
 
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel
 import dev.langchain4j.model.ollama.OllamaChatModel
-import java.io.File
 
 object Main {
 
   private val logger = org.slf4j.LoggerFactory.getLogger("SimulationAgentMain")
 
   def main(args: Array[String]): Unit = {
+    if (args.length < 2 || args.length > 3) {
+      logger.error(
+        "Usage: simulation_agent.run <model> <task id> [prompt pieces, comma separated]; tasks: {}",
+        Tasks.all.map(_.id).mkString(", ")
+      )
+      sys.exit(2)
+    }
     val modelName = args(0)
-    logger.info("Starting simulation agent with with model: {}", modelName)
+    val taskId    = args(1)
+    val pieces    = args.lift(2).fold(Tasks.DefaultPieces)(_.split(",").map(_.trim).filter(_.nonEmpty).toList)
+    pieces.filterNot(Tasks.pieceExists) match {
+      case Nil     => ()
+      case missing =>
+        logger.error("No prompt piece {} in simulation_agent/src/main/resources/prompts", missing.mkString(", "))
+        sys.exit(2)
+    }
+    val agentTask = Tasks.byId(taskId).getOrElse {
+      logger.error("Unknown task {}; tasks: {}", taskId, Tasks.all.map(_.id).mkString(", "))
+      sys.exit(2)
+    }
+    logger.info(
+      "Starting simulation agent with model {} on task {}, prompt pieces {}",
+      modelName,
+      taskId,
+      pieces.mkString(",")
+    )
     val temperature             = 0.0
     val logRequestsAndResponses = true
     val model                   = if (modelName.toLowerCase.startsWith("gemini")) {
@@ -37,63 +60,7 @@ object Main {
         .baseUrl("http://localhost:11434")
         .build()
     }
-    val task = new AgentTask(
-      model,
-      """
-        |Run the simulation of this ScaFi program. The tools compile programs as Scala 3, so any code you write must be
-        |Scala 3: Scala 2 procedure syntax (`def f() { ... }`) and symbol literals (`'foo`) do not compile.
-        |`simulate_code` also accepts `parameters` to change the scenario (e.g. number of robots, radius); its
-        |description lists the variables with their defaults and allowed values.
-        |
-        |package it.unibo.scafi
-        |
-        |class CircleFormation extends ShapeFormation() {
-        |  override def calculateSuggestion(ordered: List[(Int, (Double, Double))]): Map[Int, (Double, Double)] = {
-        |    val division = (math.Pi * 2) / ordered.size
-        |    val precomputedAngels = ordered.indices.map(i => division * (i + 1))
-        |    var availableDevices = ordered
-        |    precomputedAngels
-        |      .map { angle =>
-        |        val candidate = availableDevices
-        |          .map {
-        |            case (id, (xPos, yPos)) =>
-        |              val newPos @ (newXpos, newYpos) = (math.sin(angle) * radius + xPos, math.cos(angle) * radius + yPos)
-        |              (id, math.sqrt((newXpos * newXpos) + (newYpos * newYpos)), newPos)
-        |          }
-        |          .minBy(_._2)
-        |        availableDevices = removeDeviceFromId(candidate._1, availableDevices)
-        |        candidate._1 -> candidate._3
-        |      }
-        |      .toMap
-        |  }
-        |
-        |  private def radius: Double = node.getOrElse(CircleFormation.RADIUS_SENSING, CircleFormation.DEFAULTS(CircleFormation.RADIUS_SENSING))
-        |
-        |  private def removeDeviceFromId(id: Int, devices: List[(Int, (Double, Double))]): List[(Int, (Double, Double))] = {
-        |    devices.filterNot { case (currentId, _) =>
-        |      currentId == id
-        |    }
-        |  }
-        |
-        |  private def nearestFromPoint(point: (Double, Double), devices: List[(Int, (Double, Double))]): Int = {
-        |    devices
-        |      .map {
-        |        case (id, (xPos, yPos)) =>
-        |          val xDelta = math.abs(point._1 - xPos)
-        |          val yDelta = math.abs(point._2 - yPos)
-        |          id -> math.sqrt((xDelta * xDelta) + (yDelta * yDelta))
-        |      }
-        |      .minBy(_._1)
-        |      ._1
-        |  }
-        |}
-        |
-        |object CircleFormation {
-        |  val RADIUS_SENSING: String = "radius"
-        |  val DEFAULTS: Map[String, Double] = Map(RADIUS_SENSING -> 0.6)
-        |}
-        |""".stripMargin
-    )
+    val task = new AgentTask(model, agentTask.fullPrompt(pieces))
     try logger.info("Agent result: {}", task.execute())
     catch {
       case e: Exception =>
