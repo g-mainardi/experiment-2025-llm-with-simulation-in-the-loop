@@ -18,12 +18,23 @@ import scala.util.Try
   * of 5, 10, 20, 40, 60 s. LangChain4j's own retries wait 0.5 and 0.75 s, too little for either. Retrying the single
   * call keeps the tool loop where it is, while retrying the whole task would restart the conversation from scratch. A
   * timeout is retried only maxTimeoutRetries times: a model that did not answer in 60 s rarely answers later.
+  *
+  * It also counts what a run costs: requests sent to the model (retries included, the unit of the Gemini quota), how
+  * many of them were retries, and the tokens of the answered ones. The counts are kept when the run fails.
   */
 class RetryingChatModel(model: ChatModel, maxRetries: Int = 5, maxTimeoutRetries: Int = 1) extends ChatModel {
 
   import RetryingChatModel.geminiError
 
   private val logger = org.slf4j.LoggerFactory.getLogger("RetryingChatModel")
+
+  var requests: Int = 0
+
+  var retries: Int = 0
+
+  var inputTokens: Long = 0
+
+  var outputTokens: Long = 0
 
   override def doChat(request: ChatRequest): ChatResponse = send(request, retry = 0)
 
@@ -36,13 +47,21 @@ class RetryingChatModel(model: ChatModel, maxRetries: Int = 5, maxTimeoutRetries
   private def send(request: ChatRequest, retry: Int): ChatResponse = {
     // Without it the terminal stays silent while the model thinks, which looks like a hang
     logger.info("Waiting for {}...", request.modelName())
-    try model.chat(request)
-    catch {
+    requests += 1
+    try {
+      val response = model.chat(request)
+      Option(response.tokenUsage()).foreach { usage =>
+        inputTokens  += Option(usage.inputTokenCount()).fold(0)(_.toInt)
+        outputTokens += Option(usage.outputTokenCount()).fold(0)(_.toInt)
+      }
+      response
+    } catch {
       case e: RetriableException if retry < retryLimit(e) && !dailyQuotaExceeded(e) =>
         val delay  = retryDelay(e).getOrElse(math.min(5 << retry, 60))
         val status = geminiError(e).map(_.path("status").asText()).getOrElse(e.getClass.getSimpleName)
         logger.warn("Model call failed with {}, retrying in {}s ({}/{})", status, delay, retry + 1, retryLimit(e))
         Thread.sleep(delay * 1000L)
+        retries += 1
         send(request, retry + 1)
     }
   }
