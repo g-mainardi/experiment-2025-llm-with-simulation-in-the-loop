@@ -15,7 +15,8 @@ object Main {
     s"""Usage: simulation_agent.run <model> <task id> [--option=value ...]
        |  --pieces=a,b,...       prompt pieces, comma separated; `${Tasks.Goal}` is the task's goal (default: none)
        |  --condition=c          tools the model gets: ${Tasks.Conditions.mkString(" | ")} (default full)
-       |  --max-round-trips=n    rounds of tool calls before the run stops (default $DefaultMaxRoundTrips)""".stripMargin
+       |  --max-round-trips=n    rounds of tool calls before the run stops (default $DefaultMaxRoundTrips)
+       |  --record=path          where to write the run record (default runs/<start time>-<task>-<model>.json)""".stripMargin
 
   private def usageError(message: String): Nothing = {
     logger.error("{}\n{}\nTasks: {}", message, Usage, Tasks.all.map(_.id).mkString(", "))
@@ -30,7 +31,7 @@ object Main {
         case _                  => usageError(s"Option $flag needs a value")
       }
     }.toMap
-    (options.keySet -- Set("pieces", "condition", "max-round-trips")).foreach(name =>
+    (options.keySet -- Set("pieces", "condition", "max-round-trips", "record")).foreach(name =>
       usageError(s"Unknown option --$name")
     )
     val (modelName, taskId) = positional match {
@@ -99,8 +100,19 @@ object Main {
           ("error", None, Some(message))
       }
     val record = RunRecord.write(
-      modelName, temperature, maxRoundTrips, agentTask, pieces, condition, startedAt, outcome, failure, answer,
-      task.calls.toSeq, model
+      modelName,
+      temperature,
+      maxRoundTrips,
+      agentTask,
+      pieces,
+      condition,
+      startedAt,
+      outcome,
+      failure,
+      answer,
+      task.calls.toSeq,
+      model,
+      options.get("record").map(java.nio.file.Path.of(_))
     )
     logger.info("Run record: {} ({} model requests)", record, model.requests)
     if (outcome == "error") sys.exit(1)

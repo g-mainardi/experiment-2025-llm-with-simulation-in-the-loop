@@ -29,7 +29,9 @@ object RunRecord {
     blocks.findLast(classDefinition.findFirstIn(_).isDefined).orElse(blocks.lastOption)
   }
 
-  /** Writes the record and returns its path. outcome is `answered`, `limit` or `error`. */
+  /** Writes the record to `path` (default `runs/<start time>-<task>-<model>.json`, unique only to the second: parallel
+    * runs pass their own) and returns it. outcome is `answered`, `limit` or `error`.
+    */
   def write(
       model: String,
       temperature: Option[Double],
@@ -42,7 +44,8 @@ object RunRecord {
       error: Option[String],
       answer: Option[String],
       calls: Seq[ToolCall],
-      cost: RetryingChatModel
+      cost: RetryingChatModel,
+      path: Option[Path]
   ): Path = {
     val record = json.createObjectNode()
     record.put("model", model)
@@ -78,10 +81,10 @@ object RunRecord {
     record.put("outputTokens", cost.outputTokens)
     record.put("modelRequests", cost.requests)
     record.put("retries", cost.retries)
-    val path = Path.of("runs", s"${startedAt.format(fileTime)}-${task.id}-$model.json")
-    Files.createDirectories(path.getParent)
-    json.writerWithDefaultPrettyPrinter().writeValue(path.toFile, record)
-    path
+    val file = path.getOrElse(Path.of("runs", s"${startedAt.format(fileTime)}-${task.id}-$model.json"))
+    Files.createDirectories(file.toAbsolutePath.getParent)
+    json.writerWithDefaultPrettyPrinter().writeValue(file.toFile, record)
+    file
   }
 
 }

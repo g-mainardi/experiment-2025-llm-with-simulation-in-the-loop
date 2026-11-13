@@ -54,7 +54,7 @@ def row(task, cell, records):
     }
 
 
-cells = ["base-none", "base-compile", "base-full", "prof-full"]
+cells = ["base-none", "base-compile", "base-full", "bare-full"]
 tasks = sorted({t for t, _ in groups if t != "all"}) + ["all"]
 rows = {key: row(*key, records) for key, records in groups.items()}
 for task in tasks:
