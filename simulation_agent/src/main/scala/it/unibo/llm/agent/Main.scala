@@ -13,7 +13,7 @@ object Main {
 
   private val Usage =
     s"""Usage: simulation_agent.run <model> <task id> [--option=value ...]
-       |  --pieces=a,b,...       prompt pieces, comma separated (default ${Tasks.DefaultPieces.mkString(",")})
+       |  --pieces=a,b,...       prompt pieces, comma separated; `${Tasks.Goal}` is the task's goal (default: none)
        |  --max-round-trips=n    rounds of tool calls before the run stops (default $DefaultMaxRoundTrips)""".stripMargin
 
   private def usageError(message: String): Nothing = {
