@@ -18,11 +18,16 @@ object RunRecord {
   // Every fenced block, so the closing fence of a ```text block is not taken for an opening one
   private val codeBlock = "(?s)```([\\w+-]*)[ \\t]*\\r?\\n(.*?)```".r
 
-  /** Without tools the program is only in the answer: its last code block tagged scala or untagged, the one the goal
-    * asks to report.
+  private val classDefinition = "\\bclass\\s+\\w+".r
+
+  /** Without tools the program is only in the answer: its last code block tagged scala or untagged that defines a
+    * class, the full program the goal asks to report; the model often repeats the changed lines in a later block.
+    * Without such a block, the last code block.
     */
-  def lastCodeBlock(answer: String): Option[String] =
-    codeBlock.findAllMatchIn(answer).filter(m => Set("", "scala")(m.group(1))).map(_.group(2)).toList.lastOption
+  def lastCodeBlock(answer: String): Option[String] = {
+    val blocks = codeBlock.findAllMatchIn(answer).filter(m => Set("", "scala")(m.group(1))).map(_.group(2)).toList
+    blocks.findLast(classDefinition.findFirstIn(_).isDefined).orElse(blocks.lastOption)
+  }
 
   /** Writes the record and returns its path. outcome is `answered`, `limit` or `error`. */
   def write(
