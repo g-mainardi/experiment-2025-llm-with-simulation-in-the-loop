@@ -13,6 +13,7 @@ import dev.langchain4j.service.AiServices
 import dev.langchain4j.service.tool.ToolArgumentsErrorHandler
 import dev.langchain4j.service.tool.ToolExecutionErrorHandler
 import dev.langchain4j.service.tool.ToolExecutionResult
+import dev.langchain4j.service.tool.ToolProvider
 
 import java.util.{List => JList}
 import java.util.{Map => JMap}
@@ -47,7 +48,7 @@ object ImageToolResultConverter extends McpToolResultConverter {
 /** A tool call: tool name, JSON arguments, and whether the tool returned an error. */
 final case class ToolCall(name: String, arguments: JsonNode, failed: Boolean)
 
-class AgentTask(model: ChatModel, prompt: String, maxRoundTrips: Int) {
+class AgentTask(model: ChatModel, prompt: String, condition: String, maxRoundTrips: Int) {
 
   private val logger = org.slf4j.LoggerFactory.getLogger("AgentTask")
 
@@ -61,7 +62,8 @@ class AgentTask(model: ChatModel, prompt: String, maxRoundTrips: Int) {
   val calls: ArrayBuffer[ToolCall] = ArrayBuffer.empty
 
   // The MCP client connects when built: built here, a server that is down fails the run, not the task's creation
-  def execute(): String = {
+  def execute(): String = if (condition == "none") assistant(None).chat(prompt)
+  else {
     val transport = new StreamableHttpMcpTransport.Builder()
       .url("http://localhost:8080/mcp")
       .logResponses(true)
@@ -71,15 +73,18 @@ class AgentTask(model: ChatModel, prompt: String, maxRoundTrips: Int) {
       .transport(transport)
       .toolResultConverter(ImageToolResultConverter)
       .build()
-    try assistant(mcpClient).chat(prompt)
+    val tools = McpToolProvider.builder().mcpClients(mcpClient)
+    if (condition == "compile") tools.filterToolNames("compile_code")
+    try assistant(Some(tools.build())).chat(prompt)
     finally mcpClient.close()
   }
 
   // AiServices runs the tool loop: model -> MCP tool -> tool result back to the model, until a final answer
-  private def assistant(mcpClient: DefaultMcpClient) = AiServices
+  // Without a tool provider the model answers at once: the hooks and the round trip limit never come into play
+  private def assistant(tools: Option[ToolProvider]) = AiServices
     .builder(classOf[Assistant])
     .chatModel(model)
-    .toolProvider(McpToolProvider.builder().mcpClients(mcpClient).build())
+    .toolProvider(tools.orNull)
     .maxToolCallingRoundTrips(maxRoundTrips)
     // Wrong arguments: the model reads why and can retry
     .toolArgumentsErrorHandler(ToolArgumentsErrorHandler.sendExceptionMessageToLlm())

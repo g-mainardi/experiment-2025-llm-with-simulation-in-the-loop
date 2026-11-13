@@ -14,6 +14,7 @@ object Main {
   private val Usage =
     s"""Usage: simulation_agent.run <model> <task id> [--option=value ...]
        |  --pieces=a,b,...       prompt pieces, comma separated; `${Tasks.Goal}` is the task's goal (default: none)
+       |  --condition=c          tools the model gets: ${Tasks.Conditions.mkString(" | ")} (default full)
        |  --max-round-trips=n    rounds of tool calls before the run stops (default $DefaultMaxRoundTrips)""".stripMargin
 
   private def usageError(message: String): Nothing = {
@@ -29,7 +30,9 @@ object Main {
         case _                  => usageError(s"Option $flag needs a value")
       }
     }.toMap
-    (options.keySet -- Set("pieces", "max-round-trips")).foreach(name => usageError(s"Unknown option --$name"))
+    (options.keySet -- Set("pieces", "condition", "max-round-trips")).foreach(name =>
+      usageError(s"Unknown option --$name")
+    )
     val (modelName, taskId) = positional match {
       case List(model, task) => (model, task)
       case _                 => usageError("Expected a model and a task id")
@@ -43,10 +46,12 @@ object Main {
     val maxRoundTrips = options.get("max-round-trips").fold(DefaultMaxRoundTrips) { value =>
       value.toIntOption.filter(_ > 0).getOrElse(usageError(s"--max-round-trips must be a positive integer: $value"))
     }
+    val condition = options.getOrElse("condition", "full")
+    if (!Tasks.Conditions.contains(condition)) usageError(s"Unknown condition $condition")
     val agentTask = Tasks.byId(taskId).getOrElse(usageError(s"Unknown task $taskId"))
     logger.info(
-      "Starting simulation agent with model {} on task {}, prompt pieces {}, at most {} round trips", modelName, taskId,
-      pieces.mkString(","), maxRoundTrips
+      "Starting simulation agent with model {} on task {}, condition {}, prompt pieces {}, at most {} round trips",
+      modelName, taskId, condition, pieces.mkString(","), maxRoundTrips
     )
     val gemini = modelName.toLowerCase.startsWith("gemini")
     // Gemini 3.5 Flash-Lite and later ignore temperature, top_p and top_k, and Google asks to stop sending them
@@ -76,7 +81,7 @@ object Main {
           .baseUrl("http://localhost:11434")
           .build()
     )
-    val task                       = new AgentTask(model, agentTask.fullPrompt(pieces), maxRoundTrips)
+    val task                       = new AgentTask(model, agentTask.fullPrompt(pieces, condition), condition, maxRoundTrips)
     val startedAt                  = OffsetDateTime.now()
     val (outcome, answer, failure) =
       try {
@@ -94,8 +99,8 @@ object Main {
           ("error", None, Some(message))
       }
     val record = RunRecord.write(
-      modelName, temperature, maxRoundTrips, agentTask, pieces, startedAt, outcome, failure, answer, task.calls.toSeq,
-      model
+      modelName, temperature, maxRoundTrips, agentTask, pieces, condition, startedAt, outcome, failure, answer,
+      task.calls.toSeq, model
     )
     logger.info("Run record: {} ({} model requests)", record, model.requests)
     if (outcome == "error") sys.exit(1)

@@ -16,15 +16,21 @@ enum Target {
 final case class Task(id: String, goal: String, startingProgram: Option[String], target: Target) {
 
   /** The prompt sent to the model: the given pieces, one paragraph each, then the starting program after the line of
-    * the original prompt. Without pieces it is the original prompt of the professor's repo.
+    * the original prompt. Without pieces and with simulation it is the original prompt of the professor's repo; without
+    * `simulate_code` the line only introduces the program, since the model can't run it.
     */
-  def fullPrompt(pieces: List[String]): String =
+  def fullPrompt(pieces: List[String], condition: String): String = {
+    val line = if (condition == "full") "Run the simulation of this:" else "Here is the program:"
     (pieces.map(name => Tasks.piece(if (name == Tasks.Goal) goal else name)) :::
-      startingProgram.toList.map(program => s"Run the simulation of this:\n$program")).mkString("\n\n")
+      startingProgram.toList.map(program => s"$line\n$program")).mkString("\n\n")
+  }
 
 }
 
 object Tasks {
+
+  /** Feedback the model gets: no tools, `compile_code` only, or `compile_code` and `simulate_code` with the plot. */
+  val Conditions: List[String] = List("none", "compile", "full")
 
   /** The piece that stands for the task's goal, so the same pieces fit every task. */
   val Goal = "goal"

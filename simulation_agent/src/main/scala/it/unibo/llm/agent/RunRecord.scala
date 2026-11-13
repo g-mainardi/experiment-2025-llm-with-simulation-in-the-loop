@@ -15,6 +15,15 @@ object RunRecord {
 
   private val fileTime = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
 
+  // Every fenced block, so the closing fence of a ```text block is not taken for an opening one
+  private val codeBlock = "(?s)```([\\w+-]*)[ \\t]*\\r?\\n(.*?)```".r
+
+  /** Without tools the program is only in the answer: its last code block tagged scala or untagged, the one the goal
+    * asks to report.
+    */
+  def lastCodeBlock(answer: String): Option[String] =
+    codeBlock.findAllMatchIn(answer).filter(m => Set("", "scala")(m.group(1))).map(_.group(2)).toList.lastOption
+
   /** Writes the record and returns its path. outcome is `answered`, `limit` or `error`. */
   def write(
       model: String,
@@ -22,6 +31,7 @@ object RunRecord {
       maxRoundTrips: Int,
       task: Task,
       pieces: List[String],
+      condition: String,
       startedAt: OffsetDateTime,
       outcome: String,
       error: Option[String],
@@ -40,7 +50,7 @@ object RunRecord {
       case Target.Circle(radius) => target.put("shape", "circle").put("radius", radius)
     }
     pieces.foreach(record.putArray("pieces").add)
-    record.put("condition", "full")
+    record.put("condition", condition)
     record.put("startedAt", startedAt.toString)
     record.put("durationSeconds", Duration.between(startedAt, OffsetDateTime.now()).toMillis / 1000.0)
     record.put("outcome", outcome)
@@ -53,8 +63,11 @@ object RunRecord {
     record.put("simulateFailures", simulates.count(_.failed))
     val parameters = record.putArray("simulateParameters")
     simulates.foreach(call => parameters.add(Option(call.arguments.get("parameters")).getOrElse(json.nullNode())))
-    val finalCall = simulates.lastOption.orElse(compiles.lastOption)
-    record.put("finalProgram", finalCall.flatMap(c => Option(c.arguments.get("program"))).map(_.asText()).orNull)
+    val finalCall    = simulates.lastOption.orElse(compiles.lastOption)
+    val finalProgram =
+      if (condition == "none") answer.flatMap(lastCodeBlock)
+      else finalCall.flatMap(c => Option(c.arguments.get("program"))).map(_.asText())
+    record.put("finalProgram", finalProgram.orNull)
     record.put("answer", answer.orNull)
     record.put("inputTokens", cost.inputTokens)
     record.put("outputTokens", cost.outputTokens)
