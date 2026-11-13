@@ -117,6 +117,8 @@ object Evaluate {
     criterion.put("steadyState", FormationOracle.SteadyState)
     criterion.put("endTime", FormationOracle.EndTime)
     criterion.put("jitter", FormationOracle.Jitter)
+    // Records judged on another number of seeds keep saying so, and their evaluations are not reused
+    criterion.put("seeds", FormationOracle.Seeds.size)
     evaluation.putArray("seeds")
     evaluation
   }

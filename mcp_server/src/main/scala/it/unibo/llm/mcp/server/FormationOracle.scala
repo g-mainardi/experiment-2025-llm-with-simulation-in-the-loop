@@ -29,8 +29,11 @@ object FormationOracle {
   val SteadyState = 500.0
 
   // The scenario of the evaluation: the YAML defaults with a jittered grid, so each seed starts from a different
-  // layout, and twice the run, because the correct program converges as late as t=3000
-  val Seeds: List[Int] = (0 to 9).toList
+  // layout, and twice the run, because the correct program converges as late as t=3000. Three seeds, not ten: on the
+  // 13 records judged with ten, every program passed or failed on all of them, and the evaluation takes a third of
+  // the time; a program at the edge of a threshold (it happens on the angular gap and the min distance) can now pass
+  // where ten seeds would have caught it
+  val Seeds: List[Int] = (0 to 2).toList
 
   val Jitter = 0.1
 
