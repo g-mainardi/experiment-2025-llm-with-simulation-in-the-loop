@@ -47,6 +47,11 @@ object ScafiTestUtils {
     thread
   }
 
+  // One compilation at a time: each one loads the whole server classpath, so twenty in parallel (Evaluate runs
+  // simulations on every core) took more than 3 GB and got the JVM killed. A compilation takes about 0.3 s, a
+  // simulation several seconds: the simulations still run in parallel.
+  private val compilerLock = new Object
+
   /** Scenario variables the tool accepts as parameters, read from the YAML. */
   lazy val variables: Map[String, Variable[?]] =
     LoadAlchemist.from(getClass.getResource("/swarmSimulation.yml")).getVariables.asScala.toMap
@@ -257,7 +262,7 @@ object ScafiTestUtils {
     }
     try {
       val args = Array("-usejavacp", "-d", outDir.toString, source.toString)
-      (new Driver().process(args, reporter).hasErrors, messages.toList)
+      (compilerLock.synchronized(new Driver().process(args, reporter).hasErrors), messages.toList)
     } catch {
       case e: Exception => (true, List(s"Compilation error: ${e.getMessage}"))
     }
