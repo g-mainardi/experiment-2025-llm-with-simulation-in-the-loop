@@ -108,7 +108,8 @@ object FormationOracle {
         else Right(circle(trace.positions, radius, collisionArea))
       }
 
-  private def collisionArea: Double = ScafiTestUtils.variables("collisionArea").getDefault.toString.toDouble
+  /** The scenario default, which the evaluation keeps. */
+  def collisionArea: Double = ScafiTestUtils.variables("collisionArea").getDefault.toString.toDouble
 
   private def distance(a: NodePosition, b: NodePosition): Double = math.hypot(a.x - b.x, a.y - b.y)
 
