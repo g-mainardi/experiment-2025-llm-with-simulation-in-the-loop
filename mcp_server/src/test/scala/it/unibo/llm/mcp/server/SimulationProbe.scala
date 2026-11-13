@@ -10,7 +10,8 @@ import java.util.Base64
 import scala.concurrent.duration._
 
 /** Measures the `simulate_code` pipeline, checks which code is actually simulated and prints the circle metrics of the
-  * program and of the circle-bug-* mutants.
+  * program and of the circle-bug-* mutants, then judges the reference line, square and V (the files next to it) and the
+  * program itself against every shape.
   *
   * Usage: `./mill mcp_server.test.runMain it.unibo.llm.mcp.server.SimulationProbe <CircleFormation.scala> [output dir]`
   * (absolute paths).
@@ -19,6 +20,9 @@ object SimulationProbe {
 
   // Target radius: the scenario default
   private val Radius = scenarioDefault("radius")
+
+  // Spacing of the slot shapes, as in the reference formations
+  private val Spacing = 0.4
 
   // One seed of the oracle's, to keep the CI run short
   private val ProbeSeed = 0
@@ -86,12 +90,20 @@ object SimulationProbe {
         mutant(source, "* radius + xPos, math.cos(angle) * radius + yPos", "* radius, math.cos(angle) * radius")
       )
     )
+    println(s"\n== D. Slot shapes: each reference against every shape, seed $ProbeSeed")
+    // The references next to CircleFormation in it.unibo.scafi; CircleFormation is the starting program of the shape
+    // tasks, so it must fail them all
+    val references = List("line" -> "LineFormation", "square" -> "SquareFormation", "v" -> "VFormation")
+    val slotsRight = (references :+ ("circle" -> "CircleFormation")).map { case (own, name) =>
+      val program = Files.readString(Paths.get(args(0)).resolveSibling(s"$name.scala"))
+      shapeMetrics(name, own, program)
+    }
     // Exit code for CI: section B must show that each submission is simulated and compile errors are reported,
     // section C that the oracle accepts the correct program and rejects the mutants
     val shas   = Seq(original, modified, third)
     val passed =
       shas.forall(_.nonEmpty) && shas.distinct.size == shas.size && notCompiling.isEmpty && decoyed.nonEmpty &&
-        correctPasses && !mutantsPass.contains(true)
+        correctPasses && !mutantsPass.contains(true) && slotsRight.forall(identity)
     println(s"\n== Result: ${if (passed) "PASSED" else "FAILED"}")
     sys.exit(if (passed) 0 else 1)
   }
@@ -122,6 +134,29 @@ object SimulationProbe {
   }
 
   /** Prints the oracle metrics of `program` with the default radius; returns whether it passed. */
+  /** Simulates `program` once and judges it against every slot shape and the circle: it must pass exactly `own`.
+    * Returns whether it did.
+    */
+  private def shapeMetrics(name: String, own: String, program: String): Boolean = {
+    println(s"-- $name")
+    FormationOracle.run(program, ProbeSeed, 5.minutes) match {
+      case Left(errors) => println(s"ERROR: ${errors.mkString("; ")}"); false
+      case Right(trace) =>
+        val circle  = FormationOracle.circle(trace, Radius, FormationOracle.collisionArea)
+        val verdict = FormationOracle.SlotShapes.toList.sorted.map { shape =>
+          val s = FormationOracle.slotShape(trace, shape, Spacing, FormationOracle.collisionArea)
+          println(
+            f"$shape%-6s Hausdorff=${s.hausdorff}%.3f min distance=${s.minDistance}%.3f " +
+              s"convergence=${s.convergence
+                  .fold("never")(t => f"t=$t%.0f")} ${if (s.passed) "PASSED" else "not passed"}"
+          )
+          s.passed == (shape == own)
+        }
+        println(s"circle passed: ${circle.passed}")
+        verdict.forall(identity) && circle.passed == (own == "circle")
+    }
+  }
+
   private def circleMetrics(label: String, program: String): Boolean = {
     println(s"-- $label")
     FormationOracle.evaluate(program, Radius, ProbeSeed) match {
