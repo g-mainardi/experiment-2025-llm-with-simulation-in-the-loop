@@ -17,14 +17,11 @@ import scala.concurrent.duration._
   */
 object SimulationProbe {
 
-  // Scenario defaults from swarmSimulation.yml
+  // Target radius: the scenario default
   private val Radius = scenarioDefault("radius")
 
-  private val RadiusTolerance = scenarioDefault("stabilityThreshold")
-
-  private val CollisionArea = scenarioDefault("collisionArea")
-
-  private val ExportInterval = 10
+  // One seed of the oracle's, to keep the CI run short
+  private val ProbeSeed = 0
 
   def main(args: Array[String]): Unit = {
     val source = Files.readString(Paths.get(args(0)))
@@ -62,21 +59,28 @@ object SimulationProbe {
     else if (third.nonEmpty && third != original)
       println("=> B5 differs from B1 and B2: each simulation runs its own code")
 
-    println(s"\n== C. Circle metrics on the tool pipeline (export every $ExportInterval time units)")
-    circleMetrics("C1 original", source)
+    println(
+      s"\n== C. Oracle on the tool pipeline: seed $ProbeSeed, jitter ${FormationOracle.Jitter}, " +
+        s"t=${FormationOracle.EndTime} (Evaluate uses seeds ${FormationOracle.Seeds.mkString(",")})"
+    )
+    val correctPasses = circleMetrics("C1 original", source)
     // The starting programs of the circle-bug-* agent tasks, one bug each
-    circleMetrics(
-      "C2 half circle (math.Pi / n)",
-      mutant(source, "(math.Pi * 2) / ordered.size", "math.Pi / ordered.size")
+    val mutantsPass = List(
+      circleMetrics(
+        "C2 half circle (math.Pi / n)",
+        mutant(source, "(math.Pi * 2) / ordered.size", "math.Pi / ordered.size")
+      ),
+      circleMetrics("C3 farthest node (maxBy)", mutant(source, ".minBy(_._2)", ".maxBy(_._2)")),
+      circleMetrics(
+        "C4 absolute coordinates (no + xPos / yPos)",
+        mutant(source, "* radius + xPos, math.cos(angle) * radius + yPos", "* radius, math.cos(angle) * radius")
+      )
     )
-    circleMetrics("C3 farthest node (maxBy)", mutant(source, ".minBy(_._2)", ".maxBy(_._2)"))
-    circleMetrics(
-      "C4 absolute coordinates (no + xPos / yPos)",
-      mutant(source, "* radius + xPos, math.cos(angle) * radius + yPos", "* radius, math.cos(angle) * radius")
-    )
-    // Exit code for CI: section B must show that each submission is simulated and compile errors are reported
+    // Exit code for CI: section B must show that each submission is simulated and compile errors are reported,
+    // section C that the oracle accepts the correct program and rejects the mutants
     val shas   = Seq(original, modified, third)
-    val passed = shas.forall(_.nonEmpty) && shas.distinct.size == shas.size && notCompiling.isEmpty
+    val passed = shas.forall(_.nonEmpty) && shas.distinct.size == shas.size && notCompiling.isEmpty &&
+      correctPasses && !mutantsPass.contains(true)
     println(s"\n== Result: ${if (passed) "PASSED" else "FAILED"}")
     sys.exit(if (passed) 0 else 1)
   }
@@ -106,22 +110,19 @@ object SimulationProbe {
     source.replace(from, to)
   }
 
-  private def circleMetrics(label: String, program: String): Unit = {
+  /** Prints the oracle metrics of `program` with the default radius; returns whether it passed. */
+  private def circleMetrics(label: String, program: String): Boolean = {
     println(s"-- $label")
-    val denseExport = s"variables: { exportInterval: { formula: $ExportInterval } }"
-    ScafiTestUtils.simulate(program, 60.seconds, yaml = List(denseExport)) match {
-      case Left(errors) => println(s"ERROR: ${errors.mkString("; ")}")
-      case Right(trace) =>
-        trace.notes.foreach(note => println(s"NOTE: $note"))
-        val circle = FormationOracle.circle(trace.positions, Radius, CollisionArea, RadiusTolerance)
+    FormationOracle.evaluate(program, Radius, ProbeSeed) match {
+      case Left(errors) => println(s"ERROR: ${errors.mkString("; ")}"); false
+      case Right(c)     =>
         println(
-          f"t=${circle.end}%.0f  mean radius=${circle.last.meanRadius}%.3f  radial RMSE=${circle.last.rmse}%.3f  " +
-            f"angular gap=${circle.last.angularGap}%.2f  min distance in run=${circle.minDistance}%.3f"
+          f"t=${c.end}%.0f  mean radius=${c.meanRadius}%.3f  in the last ${FormationOracle.SteadyState}%.0f: " +
+            f"max radial RMSE=${c.rmse}%.3f, max angular gap=${c.angularGap}%.2f; min distance in run=${c.minDistance}%.3f"
         )
-        println(
-          s"Convergence (RMSE ≤ $RadiusTolerance from then on): ${circle.convergence.fold("never")(t => f"t=$t%.0f")}"
-        )
-        println(s"Acceptance criterion: ${if (circle.passed) "PASSED" else "NOT passed"}")
+        println(s"Convergence: ${c.convergence.fold("never")(t => f"t=$t%.0f")}")
+        println(s"Acceptance criterion: ${if (c.passed) "PASSED" else "NOT passed"}")
+        c.passed
     }
   }
 

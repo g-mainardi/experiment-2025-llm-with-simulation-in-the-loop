@@ -8,7 +8,7 @@ Experiment where an LLM acts as "programmer in the loop": it writes ScaFi aggreg
 
 ## Commands
 
-Build tool is Mill (`./mill`, version pinned in `.mill-version`). Scala 3.10.0, the version the Alchemist ScaFi incarnation is built with (it is Scala 3 only since Alchemist 45). There are no tests: `mcp_server.test` only holds the dev-only `SimulationProbe` (`./mill mcp_server.test.runMain it.unibo.llm.mcp.server.SimulationProbe <abs path to CircleFormation.scala>`), which checks that `simulate_code` runs the submitted code and prints the circle metrics. It exits with 1 when the check fails, and CI runs it as a smoke test.
+Build tool is Mill (`./mill`, version pinned in `.mill-version`). Scala 3.10.0, the version the Alchemist ScaFi incarnation is built with (it is Scala 3 only since Alchemist 45). There are no tests: `mcp_server.test` only holds the dev-only `SimulationProbe` (`./mill mcp_server.test.runMain it.unibo.llm.mcp.server.SimulationProbe <abs path to CircleFormation.scala>`), which checks that `simulate_code` runs the submitted code and that `FormationOracle` accepts the given program and rejects the three `circle-bug-*` mutants, on one seed. It exits with 1 when a check fails, and CI runs it as a smoke test.
 
 ```bash
 ./mill mcp_server.compile                 # compile a module
