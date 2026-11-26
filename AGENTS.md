@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Use [README.md](README.md) for setup and CLI usage, and [Experiment internals](docs/experiment.md) to navigate the implementation. Verify behavior against the source and its configuration. Update the relevant documentation when behavior changes.
+Use [README.md](README.md) for setup and CLI usage, and [Experiment internals](docs/experiment.md) to navigate the implementation. Verify behavior against the source and its configuration. Update the relevant documentation when behavior changes. If the checkout root has a `CLAUDE.local.md`, read it too and follow it: it holds local instructions that are not versioned.
 
 ## Verification
 
@@ -17,3 +17,7 @@ Use [README.md](README.md) for setup and CLI usage, and [Experiment internals](d
 - Use `scripts/remove-worktree.sh <type>/<task>` to clean up a merged worktree.
 - Record formatting-only commits in `.git-blame-ignore-revs` using the SHA they get on `master`.
 - Report bugs and technical issues through GitHub Issues.
+
+## Development setup
+
+- [Agentic development](docs/agentic-development.md) describes how this repository is developed with coding agents: instructions, worktrees, stacked PRs, hooks and CI. Update it when you change any of them, and add to its lessons any mistake that led to a new rule.
