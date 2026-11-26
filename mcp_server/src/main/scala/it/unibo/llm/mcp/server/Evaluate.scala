@@ -15,9 +15,9 @@ import scala.collection.mutable
 import scala.jdk.StreamConverters._
 import scala.util.control.NonFatal
 
-/** Judges the final program of each agent run record with `FormationOracle` and writes the result in the record, as
-  * `evaluation` (documented in AGENTS.md). The program is simulated in the oracle's scenario with the target radius,
-  * whatever `parameters` the agent chose.
+/** Judges the final program of each agent run record with `FormationOracle` and writes the result in the record as
+  * `evaluation`. The program is simulated in the oracle's scenario with the target radius, whatever `parameters` the
+  * agent chose.
   *
   * Usage: `./mill mcp_server.runMain it.unibo.llm.mcp.server.Evaluate <runs dir> [--force] [--threads=n]` (absolute
   * path). `--force` evaluates again the records that already have an evaluation, e.g. after a threshold change.

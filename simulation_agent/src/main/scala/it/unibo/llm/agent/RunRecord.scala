@@ -8,7 +8,7 @@ import java.time.Duration
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
-/** One JSON file per run in `runs/`, read by the offline evaluation: keep it flat. Fields are documented in AGENTS.md. */
+/** One JSON file per run in `runs/`, read by the offline evaluation: keep it flat. */
 object RunRecord {
 
   private val json = new ObjectMapper()
