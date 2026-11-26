@@ -164,7 +164,7 @@ object SimulationProbe {
       case Right(c)     =>
         println(
           f"t=${c.end}%.0f  mean radius=${c.meanRadius}%.3f  in the last ${FormationOracle.SteadyState}%.0f: " +
-            f"max radial RMSE=${c.rmse}%.3f, max angular gap=${c.angularGap}%.2f; min distance in run=${c.minDistance}%.3f"
+            f"max radial RMSE=${c.rmse}%.3f, max angular gap=${c.angularGap}%.2f, min distance=${c.minDistance}%.3f"
         )
         println(s"Convergence: ${c.convergence.fold("never")(t => f"t=$t%.0f")}")
         println(s"Acceptance criterion: ${if (c.passed) "PASSED" else "NOT passed"}")

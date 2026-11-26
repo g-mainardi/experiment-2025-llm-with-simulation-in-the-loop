@@ -125,8 +125,9 @@ object Evaluate {
       criterion.put("maxRmse", FormationOracle.RmseTolerance * key.size)
       criterion.put("maxAngularGap", FormationOracle.AngularTolerance)
     }
-    // Over the whole run for the circle, in the steady state for the slot shapes
     criterion.put("minDistance", FormationOracle.DistanceTolerance * FormationOracle.collisionArea)
+    // Distinguishes steady-state minDistance evaluations from earlier ones that measured it over the whole run
+    criterion.put("minDistanceWindow", "steadyState")
     criterion.put("steadyState", FormationOracle.SteadyState)
     criterion.put("endTime", FormationOracle.EndTime)
     criterion.put("jitter", FormationOracle.Jitter)

@@ -23,10 +23,10 @@ object FormationOracle {
   /** Max deviation of a gap between consecutive follower angles from 2π/n, as a fraction of 2π/n. */
   val AngularTolerance = 1.5
 
-  /** Min distance between any two robots over the whole run, as a fraction of `collisionArea`. */
+  /** Min distance between any two robots in the steady state, as a fraction of `collisionArea`. */
   val DistanceTolerance = 0.8
 
-  /** Time units at the end of the run where every snapshot must be within the radius and angle tolerances. */
+  /** Time units at the end of the run where every snapshot must be within the tolerances. */
   val SteadyState = 500.0
 
   // The scenario of the evaluation: the YAML defaults with a jittered grid, so each seed starts from a different
@@ -52,8 +52,10 @@ object FormationOracle {
     */
   final case class Snapshot(meanRadius: Double, rmse: Double, angularGap: Double, minDistance: Double)
 
-  /** A whole run: mean radius at the end, worst RMSE and angular gap in the steady state, min distance over the whole
-    * run, and the first time from which the RMSE stays within the tolerance.
+  /** A whole run: mean radius at the end, worst RMSE, angular gap and min distance in the steady state, and the first
+    * time from which the RMSE stays within the tolerance. The min distance is checked in the steady state only, as for
+    * the slot shapes, so a transient brush while the robots move to their positions does not fail a formation that
+    * settles cleanly.
     */
   final case class Circle(
       end: Double,
@@ -75,10 +77,9 @@ object FormationOracle {
   val HausdorffTolerance = 0.5
 
   /** A slot shape judged on a whole run: worst Hausdorff distance and min distance in the steady state, and the first
-    * time from which the Hausdorff distance stays within the tolerance. The min distance is not over the whole run as
-    * for the circle: the reference line comes as close as 0.088 (and the V 0.146) while the robots cross on their way
-    * to the slots, a transient that comes from the repulsion in ShapeFormation, not from the shape; in the steady state
-    * the references stay at 0.29 or more.
+    * time from which the Hausdorff distance stays within the tolerance. Over the whole run the reference line comes as
+    * close as 0.088 (and the V 0.146) while the robots cross on their way to the slots, a transient that comes from the
+    * repulsion in ShapeFormation, not from the shape; in the steady state the references stay at 0.29 or more.
     */
   final case class Slots(
       end: Double,
@@ -202,7 +203,7 @@ object FormationOracle {
     val steady      = timeline.filter(_._1 >= end - SteadyState).map(_._2)
     val rmse        = steady.map(_.rmse).max
     val angularGap  = steady.map(_.angularGap).max
-    val minDistance = timeline.map(_._2.minDistance).min
+    val minDistance = steady.map(_.minDistance).min
     val tolerance   = RmseTolerance * radius
     val convergence = timeline.indices.find(k => timeline.drop(k).forall(_._2.rmse <= tolerance)).map(timeline(_)._1)
     val passed      =
