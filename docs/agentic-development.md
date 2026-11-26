@@ -6,6 +6,7 @@ This repository is developed mostly through coding agents (Claude Code and Codex
 
 - [`AGENTS.md`](../AGENTS.md) holds the instructions every agent follows. Codex reads it directly and `CLAUDE.md` imports it (`@AGENTS.md`), so both tools share one source.
 - It stays short: how the code works is in [Experiment internals](experiment.md), setup and CLI usage in the [README](../README.md). Agents read those on demand instead of loading them in every session.
+- What holds only in part of the repository is a rule. Area rules sit in `.claude/rules/` with a `paths:` frontmatter (Scala, Markdown, the oracle, the swarm model, these instructions); each module (`mcp_server`, `simulation_agent`, `scripts`) has its own in `<module>/.claude/rules/`, ending with a State section that says what is done and what is missing. Claude Code loads a rule when it touches a matching file; Codex follows the *Rules by path* list in `AGENTS.md`. Rules say what to do and check in their area and link to the internals instead of repeating them.
 - `CLAUDE.local.md` holds personal instructions for a checkout. It is not versioned (excluded through `.git/info/exclude`) and `scripts/new-worktree.sh` copies it into new worktrees.
 
 ## From plan to pull request
