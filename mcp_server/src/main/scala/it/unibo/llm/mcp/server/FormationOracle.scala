@@ -70,7 +70,7 @@ object FormationOracle {
 
   /** Max Hausdorff distance between followers and slots, as a fraction of the spacing. The references stay within 0.1
     * (the stabilityThreshold: a robot stops within 0.1 of its goal) at spacing 0.4 on seeds 0-9, the closest negative
-    * (a 5x3 grid instead of 4x4) at 0.46 or more.
+    * (a 5x3 grid instead of 4x4) at 0.39 or more.
     */
   val HausdorffTolerance = 0.5
 
@@ -88,8 +88,16 @@ object FormationOracle {
       passed: Boolean
   )
 
+  /** Angles for the rotation-invariant slot comparison: a 1-degree coarse grid over `[0, 2π)` and a 0.05-degree local
+    * refinement around the best coarse angle, which keeps the discretization error below 0.002 at radius 3.2.
+    */
+  private val CoarseAngles = 360
+
+  private val FineSteps = 20
+
   /** The slots of `n` followers, one list per admitted variant: the shapes of the reference formations, with the extra
-    * robot of the line and the V on either side and the leader in any corner of the square.
+    * robot of the line and the V on either side and the leader in any corner of the square. Combined with 2D rotations
+    * around the leader in `hausdorff`, these variants also cover all reflections of the three shapes.
     */
   def slots(shape: String, spacing: Double, n: Int): List[List[(Double, Double)]] = {
     def mirror(slots: List[(Double, Double)]) = slots.map { case (x, y) => (-x, y) }
@@ -118,13 +126,41 @@ object FormationOracle {
     }
   }
 
-  /** Hausdorff distance between the followers, relative to the leader, and the nearest variant of the slots. */
+  /** Hausdorff distance between the followers, relative to the leader, and the nearest variant and 2D rotation around
+    * the leader of the slots.
+    */
   def hausdorff(nodes: NodesPositions, variants: List[List[(Double, Double)]]): Double = {
-    val leader                                                        = nodes(LeaderId)
-    val followers                                                     = (nodes - LeaderId).values.toList.map(p => (p.x - leader.x, p.y - leader.y))
-    def far(from: List[(Double, Double)], to: List[(Double, Double)]) =
-      from.map { case (x, y) => to.map { case (u, v) => math.hypot(x - u, y - v) }.min }.max
-    variants.map(slots => math.max(far(slots, followers), far(followers, slots))).min
+    val leader                                                                                      = nodes(LeaderId)
+    val followers                                                                                   = (nodes - LeaderId).values.map(p => (p.x - leader.x, p.y - leader.y)).toArray
+    val steps                                                                                       = variants.map(_.toArray)
+    def farSq(from: Array[(Double, Double)], to: Array[(Double, Double)], cos: Double, sin: Double) = {
+      var (worst, i) = (0.0, 0)
+      while (i < from.length) {
+        val (fx, fy)  = from(i)
+        val (rx, ry)  = (fx * cos - fy * sin, fx * sin + fy * cos)
+        var (best, j) = (Double.MaxValue, 0)
+        while (j < to.length) {
+          val (tx, ty) = to(j)
+          val d        = (rx - tx) * (rx - tx) + (ry - ty) * (ry - ty)
+          if (d < best) best = d
+          j += 1
+        }
+        if (best > worst) worst = best
+        i += 1
+      }
+      worst
+    }
+    def atAngle(slots: Array[(Double, Double)], angle: Double) = {
+      val (cos, sin) = (math.cos(angle), math.sin(angle))
+      math.max(farSq(slots, followers, cos, sin), farSq(followers, slots, cos, -sin))
+    }
+    val step = 2 * math.Pi / CoarseAngles
+    math.sqrt(
+      steps.map { slots =>
+        val coarse = (0 until CoarseAngles).map(k => k * step).minBy(atAngle(slots, _))
+        (-FineSteps to FineSteps).map(j => atAngle(slots, coarse + j * step / FineSteps)).min
+      }.min
+    )
   }
 
   def slotShape(trace: TimeStampedNodesPositions, shape: String, spacing: Double, collisionArea: Double): Slots = {
