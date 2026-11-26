@@ -5,7 +5,7 @@
   "schedule": ["before 6am on monday"],
   "packageRules": [
     {
-      "description": "Alchemist stays on 49.1.0, as agreed for the thesis",
+      "description": "Alchemist stays on 49.1.0: the experiment results must stay comparable",
       "matchPackageNames": ["it.unibo.alchemist:**"],
       "enabled": false
     },
