@@ -91,12 +91,14 @@ object SimulationProbe {
       )
     )
     println(s"\n== D. Slot shapes: each reference against every shape, seed $ProbeSeed")
-    // The references next to CircleFormation in it.unibo.scafi; CircleFormation is the starting program of the shape
-    // tasks, so it must fail them all
-    val references = List("line" -> "LineFormation", "square" -> "SquareFormation", "v" -> "VFormation")
-    val slotsRight = (references :+ ("circle" -> "CircleFormation")).map { case (own, name) =>
-      val program = Files.readString(Paths.get(args(0)).resolveSibling(s"$name.scala"))
-      shapeMetrics(name, own, program)
+    // The references next to CircleFormation in it.unibo.scafi, a V with the arms going up (+pi/4 instead of -pi/4),
+    // and CircleFormation itself, the starting program of the shape tasks, which must fail them all
+    val references = List("line" -> "LineFormation", "square" -> "SquareFormation", "v" -> "VFormation").map {
+      case (own, name) => (name, own, Files.readString(Paths.get(args(0)).resolveSibling(s"$name.scala")))
+    }
+    val invertedV  = ("VFormation (+pi/4)", "v", mutant(references.last._3, "-Math.PI / 4", "Math.PI / 4"))
+    val slotsRight = (references :+ invertedV :+ ("CircleFormation", "circle", source)).map {
+      case (name, own, program) => shapeMetrics(name, own, program)
     }
     // Exit code for CI: section B must show that each submission is simulated and compile errors are reported,
     // section C that the oracle accepts the correct program and rejects the mutants
