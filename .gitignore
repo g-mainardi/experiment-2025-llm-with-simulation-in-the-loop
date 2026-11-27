@@ -40,3 +40,6 @@ data-movement/
 probe-evidence
 .vscode/
 runs/
+# Published experiments keep the terminal output of each run, not the debug logs (raw HTTP traffic, base64 plots)
+!docs/experiments/**/*.log
+docs/experiments/**/*.debug.log
