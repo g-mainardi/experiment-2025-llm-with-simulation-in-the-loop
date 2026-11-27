@@ -25,6 +25,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import scala.annotation.tailrec
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import scala.io.Source
@@ -133,8 +134,9 @@ object ScafiTestUtils {
     val packageRegex = """(?m)^\s*package\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)""".r
 
     // Same offsets as program, so the package matches still point at the right place in it
-    val packages  = packageRegex.findAllMatchIn(blankCommentsAndStrings(program)).toList
-    val className = mainClassName(program) match {
+    val blanked   = blankCommentsAndStrings(program)
+    val packages  = packageRegex.findAllMatchIn(blanked).toList
+    val className = mainClassName(blanked) match {
       case Some(name) => name
       case None       =>
         return Left(List("Simulation error: Could not find class definition in the provided code:\n\n" + program))
@@ -197,12 +199,11 @@ object ScafiTestUtils {
 
   private val charLiteralRegex = """'(?:\\u[0-9a-fA-F]{4}|\\.|[^\\'\n])'""".r
 
-  /** The class to simulate: among the concrete classes outside comments and strings, the first one that extends
-    * `ShapeFormation`, else the last one. Models write helper classes, redefine `ShapeFormation` before the formation
-    * and mention classes in comments.
+  /** The class to simulate, from source with comments and literals blanked out: among the concrete classes, the first
+    * one that extends `ShapeFormation`, else the last one. Models write helper classes, redefine `ShapeFormation`
+    * before the formation and mention classes in comments.
     */
-  private def mainClassName(program: String): Option[String] = {
-    val code     = blankCommentsAndStrings(program)
+  private def mainClassName(code: String): Option[String] = {
     val matches  = classRegex.findAllMatchIn(code).toList
     val concrete = matches.zip(matches.drop(1).map(_.start) :+ code.length).collect {
       case (m, next)
@@ -215,34 +216,62 @@ object ScafiTestUtils {
 
   /** `code` with comments, string and char literals turned into spaces, newlines kept: same length and offsets. */
   private def blankCommentsAndStrings(code: String): String = {
-    val out                           = new StringBuilder(code)
-    def skip(from: Int, to: Int): Int = {
-      for (k <- from until to.min(code.length) if code(k) != '\n') out(k) = ' '
-      to
-    }
-    var i = 0
-    while (i < code.length) {
-      i =
-        if (code.startsWith("//", i)) skip(i, Some(code.indexOf('\n', i)).filter(_ >= 0).getOrElse(code.length))
-        else if (code.startsWith("/*", i)) {
-          // Scala block comments nest
-          var (j, depth) = (i + 2, 1)
-          while (j < code.length && depth > 0)
-            if (code.startsWith("/*", j)) { depth += 1; j += 2 }
-            else if (code.startsWith("*/", j)) { depth -= 1; j += 2 }
-            else j += 1
-          skip(i, j)
-        } else if (code.startsWith("\"\"\"", i))
-          skip(i, Some(code.indexOf("\"\"\"", i + 3)).filter(_ >= 0).fold(code.length)(_ + 3))
-        else if (code(i) == '"') {
-          var j = i + 1
-          while (j < code.length && code(j) != '"' && code(j) != '\n') j += (if (code(j) == '\\') 2 else 1)
-          skip(i, j + 1)
-        } else if (code(i) == '\'')
-          charLiteralRegex.findPrefixMatchOf(code.substring(i)).fold(i + 1)(m => skip(i, i + m.end))
-        else i + 1
-    }
-    out.toString
+    def blanked(from: Int, to: Int): String =
+      code.substring(from, to).map(c => if (c == '\n') '\n' else ' ')
+
+    @tailrec
+    def blockCommentEnd(j: Int, depth: Int): Int =
+      if (j >= code.length || depth == 0) j
+      else if (code.startsWith("/*", j)) blockCommentEnd(j + 2, depth + 1)
+      else if (code.startsWith("*/", j)) blockCommentEnd(j + 2, depth - 1)
+      else blockCommentEnd(j + 1, depth)
+
+    @tailrec
+    def stringEnd(j: Int): Int =
+      if (j >= code.length) code.length
+      else
+        code(j) match {
+          case '"'  => j + 1
+          case '\n' => j
+          case '\\' => if (j + 1 < code.length && code(j + 1) != '\n') stringEnd(j + 2) else j + 1
+          case _    => stringEnd(j + 1)
+        }
+
+    @tailrec
+    def extraQuotesEnd(j: Int): Int =
+      if (j < code.length && code(j) == '"') extraQuotesEnd(j + 1) else j
+
+    def literalOrCommentEnd(i: Int): Option[Int] =
+      if (code.startsWith("//", i))
+        Some(Some(code.indexOf('\n', i)).filter(_ >= 0).getOrElse(code.length))
+      else if (code.startsWith("/*", i))
+        // Scala block comments nest
+        Some(blockCommentEnd(i + 2, 1))
+      else if (code.startsWith("\"\"\"", i))
+        Some(
+          Some(code.indexOf("\"\"\"", i + 3))
+            .filter(_ >= 0)
+            .fold(code.length)(k => extraQuotesEnd(k + 3))
+        )
+      else if (code(i) == '"')
+        Some(stringEnd(i + 1))
+      else if (code(i) == '\'')
+        charLiteralRegex.findPrefixMatchOf(code.substring(i, (i + 8).min(code.length))).map(i + _.end)
+      else None
+
+    @tailrec
+    def scan(i: Int, plainFrom: Int, parts: List[String]): String =
+      if (i >= code.length)
+        (code.substring(plainFrom, code.length) :: parts).reverse.mkString
+      else
+        literalOrCommentEnd(i) match {
+          case Some(end) =>
+            scan(end, end, blanked(i, end) :: code.substring(plainFrom, i) :: parts)
+          case None =>
+            scan(i + 1, plainFrom, parts)
+        }
+
+    scan(0, 0, Nil)
   }
 
   implicit object AlchemistFormat extends DefaultCSVFormat {

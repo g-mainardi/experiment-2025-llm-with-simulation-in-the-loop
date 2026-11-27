@@ -5,6 +5,7 @@ import it.unibo.llm.mcp.server.utils.NodePosition.NodesPositions
 import it.unibo.llm.mcp.server.utils.NodePosition.TimeStampedNodesPositions
 import it.unibo.llm.mcp.server.utils.ScafiTestUtils
 
+import scala.annotation.tailrec
 import scala.concurrent.duration._
 
 /** Acceptance criteria for the formations, computed on simulated positions. The agent never sees them: they judge the
@@ -96,9 +97,23 @@ object FormationOracle {
 
   private val FineSteps = 20
 
-  /** The slots of `n` followers, one list per admitted variant: the shapes of the reference formations, with the extra
-    * robot of the line and the V on either side and the leader in any corner of the square. Combined with 2D rotations
-    * around the leader in `hausdorff`, these variants also cover all reflections of the three shapes.
+  private val CoarseStep = 2 * math.Pi / CoarseAngles
+
+  private val CoarseRotations: IArray[(Double, Double, Double)] = IArray.tabulate(CoarseAngles) { k =>
+    val angle = k * CoarseStep
+    (angle, math.cos(angle), math.sin(angle))
+  }
+
+  private val FineOffsets: IndexedSeq[Double] =
+    (-FineSteps + 1 until FineSteps).filter(_ != 0).map(_ * CoarseStep / FineSteps)
+
+  final private case class Points(xs: IArray[Double], ys: IArray[Double])
+
+  /** The slots of `n` followers, one list per variant needed up to 2D rotation around the leader: the shapes of the
+    * reference formations, reduced to representatives whose rotations cover every admitted orientation and reflection.
+    * Under 2D rotation around the leader, mirroring the line is a 180-degree rotation and all four corners of a full
+    * square are 90-degree rotations of each other, so they need one variant; an incomplete grid (`side * side != n +
+    * 1`) and the V (chiral when `n` is odd) also include their reflection.
     */
   def slots(shape: String, spacing: Double, n: Int): List[List[(Double, Double)]] = {
     def mirror(slots: List[(Double, Double)]) = slots.map { case (x, y) => (-x, y) }
@@ -107,8 +122,7 @@ object FormationOracle {
       (1 to n / 2).map(k => (-k * dx, k * dy)) ++ (1 to n - n / 2).map(k => (k * dx, k * dy))
     shape match {
       case "line" =>
-        val line = arms(spacing, 0).toList
-        List(line, mirror(line))
+        List(arms(spacing, 0).toList)
       case "v" =>
         // Leader at the apex, arms going down at 45 degrees
         val v = arms(spacing / math.sqrt(2), -spacing / math.sqrt(2)).toList
@@ -120,10 +134,7 @@ object FormationOracle {
           y <- 0 until side
           x <- 0 until side if x != 0 || y != 0
         } yield (x * spacing, y * spacing)).take(n).toList
-        for {
-          sx <- List(1, -1)
-          sy <- List(1, -1)
-        } yield square.map { case (x, y) => (sx * x, sy * y) }
+        if (side * side == n + 1) List(square) else List(square, mirror(square))
     }
   }
 
@@ -131,38 +142,46 @@ object FormationOracle {
     * the leader of the slots.
     */
   def hausdorff(nodes: NodesPositions, variants: List[List[(Double, Double)]]): Double = {
-    val leader                                                                                      = nodes(LeaderId)
-    val followers                                                                                   = (nodes - LeaderId).values.map(p => (p.x - leader.x, p.y - leader.y)).toArray
-    val steps                                                                                       = variants.map(_.toArray)
-    def farSq(from: Array[(Double, Double)], to: Array[(Double, Double)], cos: Double, sin: Double) = {
-      var (worst, i) = (0.0, 0)
-      while (i < from.length) {
-        val (fx, fy)  = from(i)
-        val (rx, ry)  = (fx * cos - fy * sin, fx * sin + fy * cos)
-        var (best, j) = (Double.MaxValue, 0)
-        while (j < to.length) {
-          val (tx, ty) = to(j)
-          val d        = (rx - tx) * (rx - tx) + (ry - ty) * (ry - ty)
-          if (d < best) best = d
-          j += 1
-        }
-        if (best > worst) worst = best
-        i += 1
-      }
-      worst
-    }
-    def atAngle(slots: Array[(Double, Double)], angle: Double) = {
-      val (cos, sin) = (math.cos(angle), math.sin(angle))
-      math.max(farSq(slots, followers, cos, sin), farSq(followers, slots, cos, -sin))
-    }
-    val step = 2 * math.Pi / CoarseAngles
+    val leader                                                      = nodes(LeaderId)
+    val followers                                                   = toPoints((nodes - LeaderId).values.map(p => (p.x - leader.x, p.y - leader.y)))
+    def atRotation(slots: Points, cos: Double, sin: Double): Double =
+      math.max(farSq(slots, followers, cos, sin, 0, 0.0), farSq(followers, slots, cos, -sin, 0, 0.0))
+    def atAngle(slots: Points, angle: Double): Double =
+      atRotation(slots, math.cos(angle), math.sin(angle))
     math.sqrt(
-      steps.map { slots =>
-        val coarse = (0 until CoarseAngles).map(k => k * step).minBy(atAngle(slots, _))
-        (-FineSteps to FineSteps).map(j => atAngle(slots, coarse + j * step / FineSteps)).min
+      variants.map { variant =>
+        val slots               = toPoints(variant)
+        val (coarseAngle, best) =
+          CoarseRotations.iterator.map { case (angle, cos, sin) => (angle, atRotation(slots, cos, sin)) }
+            .minBy(_._2)
+        FineOffsets.foldLeft(best)((acc, delta) => math.min(acc, atAngle(slots, coarseAngle + delta)))
       }.min
     )
   }
+
+  private def toPoints(coords: Iterable[(Double, Double)]): Points = {
+    val seq = coords.toIndexedSeq
+    Points(IArray.tabulate(seq.length)(seq(_)._1), IArray.tabulate(seq.length)(seq(_)._2))
+  }
+
+  @tailrec
+  private def nearestSq(rx: Double, ry: Double, to: Points, j: Int, best: Double): Double =
+    if (j == to.xs.length) best
+    else {
+      val dx = rx - to.xs(j)
+      val dy = ry - to.ys(j)
+      nearestSq(rx, ry, to, j + 1, math.min(best, dx * dx + dy * dy))
+    }
+
+  @tailrec
+  private def farSq(from: Points, to: Points, cos: Double, sin: Double, i: Int, worst: Double): Double =
+    if (i == from.xs.length) worst
+    else {
+      val fx   = from.xs(i)
+      val fy   = from.ys(i)
+      val best = nearestSq(fx * cos - fy * sin, fx * sin + fy * cos, to, 0, Double.MaxValue)
+      farSq(from, to, cos, sin, i + 1, math.max(worst, best))
+    }
 
   def slotShape(trace: TimeStampedNodesPositions, shape: String, spacing: Double, collisionArea: Double): Slots = {
     val ordered     = trace.toIndexedSeq.sortBy(_._1)
