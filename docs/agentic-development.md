@@ -6,7 +6,7 @@ This repository is developed mostly through coding agents (Claude Code and Codex
 
 - [`AGENTS.md`](../AGENTS.md) holds the instructions every agent follows. Codex reads it directly and `CLAUDE.md` imports it (`@AGENTS.md`), so both tools share one source.
 - It stays short: how the code works is in [Experiment internals](experiment.md), setup and CLI usage in the [README](../README.md). Agents read those on demand instead of loading them in every session.
-- What holds only in part of the repository is a rule. Area rules sit in `.claude/rules/` with a `paths:` frontmatter (Scala, Markdown, the oracle, the swarm model, these instructions); each module (`mcp_server`, `simulation_agent`, `scripts`) has its own in `<module>/.claude/rules/`, ending with a State section that says what is done and what is missing. Claude Code loads a rule when it touches a matching file; Codex follows the *Rules by path* list in `AGENTS.md`. Rules say what to do and check in their area and link to the internals instead of repeating them.
+- What holds only in part of the repository is a rule. Area rules sit in `.claude/rules/` with a `paths:` frontmatter (Scala, Markdown, the oracle, the swarm model, these instructions); each module (`mcp_server`, `simulation_agent`, `exp`, `scripts`) has its own in `<module>/.claude/rules/`, ending with a State section that says what is done and what is missing. Claude Code loads a rule when it touches a matching file; Codex follows the *Rules by path* list in `AGENTS.md`. Rules say what to do and check in their area and link to the internals instead of repeating them.
 - `CLAUDE.local.md` holds personal instructions for a checkout. It is not versioned (excluded through `.git/info/exclude`) and `scripts/new-worktree.sh` copies it into new worktrees.
 
 ## From plan to pull request
@@ -19,7 +19,7 @@ This repository is developed mostly through coding agents (Claude Code and Codex
 ## Checks
 
 - Git hooks, enabled by any `./mill` run (see [Git hooks](../README.md#git-hooks)): Conventional Commits for every message, scalafmt before a commit that touches Scala, and no deletion of a branch that an open pull request uses.
-- CI ([`ci.yml`](../.github/workflows/ci.yml)): formatting, compilation of all modules, the `SimulationProbe` smoke test, the Docker build and the commit messages, gathered in the `success` check that `master` requires.
+- CI ([`ci.yml`](../.github/workflows/ci.yml)): formatting, compilation of all modules, the offline matrix report test, the `SimulationProbe` smoke test, the Docker build and the commit messages, gathered in the `success` check that `master` requires.
 - Renovate ([`renovate.json`](../renovate.json)) opens the dependency updates, including the versions in `build.mill`.
 - To track adoption of the [Scala style rule](../.claude/rules/scala.md#functional-style), count new uses of `while` and `var` in PR diffs. The command below finds candidate lines. Check each match to exclude comments and strings, and use the PR's base branch in place of `origin/master` for a stacked PR.
 
@@ -31,6 +31,6 @@ git diff --no-color --unified=0 origin/master...HEAD -- '*.scala' build.mill | r
 
 Mistakes made by or with the agents, and the rule each one led to.
 
-- Concurrent `./mill` clients in one worktree once made Mill run an agent twice in one invocation. The feedback matrix now builds with Mill once and runs the agent and the evaluator from the classpath, and `AGENTS.md` keeps other Mill calls out of a worktree while the matrix runs.
+- Concurrent `./mill` clients in one worktree once made Mill run an agent twice in one invocation. `./mill exp.matrix` builds once and runs the agent and the evaluator from the classpath, and `AGENTS.md` keeps other Mill calls out of a worktree while the matrix runs.
 - Generated Scala used `while`, `var` and nested `if`/`else` even next to functional code. The [Scala rule](../.claude/rules/scala.md#functional-style) now shows alternatives taken from the project.
 - An agent merged a PR as soon as CI passed. The workflow now requires an explicit instruction from the user before an agent merges a PR.

@@ -7,7 +7,7 @@ Use [README.md](README.md) for setup and CLI usage, and [Experiment internals](d
 - Use the repository's pinned `./mill` launcher.
 - Run `./mill mill.scalalib.scalafmt/checkFormatAll` before committing Scala changes. See the [formatting instructions](README.md#formatting) for the formatter and editor setup.
 - For changes to the simulator or oracle, run the `SimulationProbe` smoke test as configured in [CI](.github/workflows/ci.yml).
-- Keep other Mill calls out of a worktree while the feedback matrix is running.
+- Keep other Mill calls and code changes out of a worktree while `./mill exp.matrix` is running.
 
 ## Rules by path
 
@@ -18,7 +18,7 @@ Before editing or reviewing files, read the rules for every affected path. Claud
 - For `CLAUDE.md`, `AGENTS.md`, `**/.claude/**`, `.agents/**` and `docs/agentic-development.md`, read `.claude/rules/agent-instructions.md`.
 - For `FormationOracle.scala`, `Evaluate.scala` and `mcp_server/src/test/**`, read `.claude/rules/oracle.md`.
 - For `mcp_server/src/main/scala/it/unibo/{scafi,alchemist}/**` and `swarmSimulation.yml`, read `.claude/rules/swarm-model.md`.
-- For files under `mcp_server/`, `simulation_agent/` or `scripts/`, read the rule in that folder's `.claude/rules/`, State included: `mcp_server/.claude/rules/mcp-server.md`, `simulation_agent/.claude/rules/simulation-agent.md`, `scripts/.claude/rules/scripts.md`.
+- For files under `mcp_server/`, `simulation_agent/`, `exp/` or `scripts/`, read the rule in that folder's `.claude/rules/`, State included: `mcp_server/.claude/rules/mcp-server.md`, `simulation_agent/.claude/rules/simulation-agent.md`, `exp/.claude/rules/exp.md`, `scripts/.claude/rules/scripts.md`.
 
 ## Workflow
 

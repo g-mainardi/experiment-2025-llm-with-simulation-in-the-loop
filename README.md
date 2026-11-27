@@ -59,7 +59,13 @@ The terminal shows each tool call, its result and the final answer; `/tmp/simula
 
 To judge whether the final program of each run really forms the circle, run `./mill mcp_server.runMain it.unibo.llm.mcp.server.Evaluate "$PWD/runs"`: it simulates each final program on three seeds, with the scenario defaults and the target radius, and writes the verdict and the metrics in the record (see [offline evaluation](docs/experiment.md#offline-evaluation)). It needs no model requests and the agent never sees its result. Simulations run in parallel (`--threads=n`, default half the logical cores) and identical programs are simulated once, with the same results as one at a time.
 
-To compare the feedback conditions, `scripts/matrix.sh [dir] [k] [jobs]` (server running) runs each task in four cells, k times (default 10), `jobs` runs at a time (default 4): the full information base with `none`, `compile` and `full`, and the bare original prompt with `full`. The records go to `dir` (default `runs/matrix-<date>`) as `<cell>--<task>--rNN.json`; `Evaluate` judges them while the runs go on, then the script runs `scripts/summary.py`, which writes `summary.csv`: success rate from the oracle, outcomes, requests, tokens and time per task and cell, and the baseline of Olausson et al. (ICLR 2024) for `none`. Run it again after an interruption: it skips the runs already there. A finished experiment goes to `docs/experiments/` with its records and a report, as described in [Experiments](docs/experiments/README.md).
+Run a feedback comparison with `./mill exp.matrix`. It loads `.env` and runs all registered tasks in four cells (`base-none`, `base-compile`, `base-full`, `bare-full`), with 10 repetitions and up to four agents in parallel. Start the MCP server separately for cells that use tools. To choose a directory, tasks, cells, repetition count and parallelism, for example:
+
+```bash
+./mill exp.matrix runs/control -k 1 --jobs 2 --tasks circle-control --cells base-none,base-full
+```
+
+The default directory is `runs/matrix-YYYYMMDD`. Rerun the same command to resume. The matrix evaluates each completed record, writes `summary.csv` and creates a `README.md` with the design, results and costs. It preserves an existing README. To regenerate just the CSV from evaluated records, run `./mill exp.summary runs/control`. See [Experiments](docs/experiments/README.md) for the publication workflow.
 
 See [Experiment internals](docs/experiment.md) for the simulation pipeline and implementation details.
 

@@ -9,7 +9,7 @@ One row per experiment: folder, question in one sentence, number of runs. None h
 ## Folder contents
 
 - `README.md`: the report, following the [template](#readme-template).
-- `summary.csv`: the summary per task and cell written by `scripts/summary.py`.
+- `summary.csv`: the summary per task and cell written by `./mill exp.summary <dir>`.
 - `<cell>--<task>--rNN.json`: one [run record](../experiment.md#run-records) per run, judged by [`Evaluate`](../experiment.md#offline-evaluation).
 - `logs/<cell>--<task>--rNN.log`: the terminal output of each run (tool calls with their arguments, tool results, final answer), and `logs/evaluate.log`.
 - `errors/`: the records of runs that ended in an infrastructure error and were run again. They stay out of the summary but count in the cost.
@@ -22,14 +22,14 @@ The records are data: never edit them by hand. A correction, such as extracting 
 
 ## Process
 
-1. Run the experiment under `runs/`, which git ignores, for example `scripts/matrix.sh runs/matrix-<date>`. Move the records of the trial runs that led to its design into the `pilot/` subfolder.
+1. Run the experiment under `runs/`, which git ignores, for example `./mill exp.matrix runs/matrix-<date>`. Put the trial records in `pilot/` before the matrix finishes so that the generated README includes their cost.
 2. When `Evaluate` has judged every record and `summary.csv` is written, copy the folder into the repository without the debug logs and `pending/`:
 
    ```bash
    rsync -a --exclude='*.debug.log' --exclude=pending/ runs/matrix-<date>/ docs/experiments/<date>-<name>/
    ```
 
-3. Write the README and open a pull request with the folder. The data of an experiment reaches `master` together with its README.
+3. Complete the generated README and open a pull request with the folder. The data of an experiment reaches `master` together with its README.
 
 ## README template
 

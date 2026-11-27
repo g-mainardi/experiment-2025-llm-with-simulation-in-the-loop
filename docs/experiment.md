@@ -6,7 +6,7 @@ Experiment where an LLM acts as "programmer in the loop": it writes ScaFi aggreg
 
 ## Running the experiment
 
-Build tool is Mill (`./mill`, version pinned in `.mill-version`). Scala 3.10.0, the version the Alchemist ScaFi incarnation is built with (it is Scala 3 only since Alchemist 45). There are no tests: `mcp_server.test` only holds the dev-only `SimulationProbe` (`./mill mcp_server.test.runMain it.unibo.llm.mcp.server.SimulationProbe <abs path to CircleFormation.scala>`), which checks that `simulate_code` runs the submitted code (also with `class` in comments and strings and a redefined `ShapeFormation`), that `FormationOracle` accepts the given program and rejects the three `circle-bug-*` mutants, and that `LineFormation`, `SquareFormation`, `VFormation` (the files next to the given one) and a rotated `VFormation` (`+π/4`) each pass their own slot shape and no other while the given `CircleFormation` fails them all, on one seed. It exits with 1 when a check fails, and CI runs it as a smoke test.
+Build tool is Mill (`./mill`, version pinned in `.mill-version`). Scala 3.10.0, the version the Alchemist ScaFi incarnation is built with (it is Scala 3 only since Alchemist 45). `./mill exp.test` checks the matrix summary and report. `mcp_server.test` holds the dev-only `SimulationProbe` (`./mill mcp_server.test.runMain it.unibo.llm.mcp.server.SimulationProbe <abs path to CircleFormation.scala>`), which checks that `simulate_code` runs the submitted code (also with `class` in comments and strings and a redefined `ShapeFormation`), that `FormationOracle` accepts the given program and rejects the three `circle-bug-*` mutants, and that `LineFormation`, `SquareFormation`, `VFormation` (the files next to the given one) and a rotated `VFormation` (`+π/4`) each pass their own slot shape and no other while the given `CircleFormation` fails them all, on one seed. It exits with 1 when a check fails, and CI runs it as a smoke test.
 
 ```bash
 ./mill mcp_server.compile                 # compile a module
@@ -17,10 +17,11 @@ docker compose up                         # server via server.Dockerfile
 
 ./mill simulation_agent.run gemini-3.5-flash-lite circle-control [--pieces=a,b] [--condition=full] [--max-round-trips=20]   # Scala agent; server must already be running
 ./mill mcp_server.runMain it.unibo.llm.mcp.server.Evaluate "$PWD/runs" [--force] [--threads=n]   # judge the final programs of the run records
-scripts/matrix.sh [runs/matrix-<date>] [k] [jobs]   # feedback comparison: tasks x cells x k runs in parallel, Evaluate, summary.csv; server running
+./mill exp.matrix runs/control -k 1 --jobs 2 --tasks circle-control --cells base-none,base-full
+./mill exp.summary runs/control            # regenerate the CSV from evaluated records
 ```
 
-- Model name starting with `gemini` uses Google AI (needs `GOOGLE_API_KEY`, kept in `.env`); anything else goes to Ollama at `localhost:11434`. Mill doesn't load `.env`: run `set -a; . ./.env; set +a` first, or Gemini answers "Permission denied on the service".
+- Model name starting with `gemini` uses Google AI (needs `GOOGLE_API_KEY`, kept in `.env`); anything else goes to Ollama at `localhost:11434`. For `simulation_agent.run`, run `set -a; . ./.env; set +a` first, or Gemini answers "Permission denied on the service".
 - Gemini runs use the most recent Flash Lite (`gemini-3.5-flash-lite` as of 2026-11; check the models list of the API for a newer one), never Flash or Pro: the experiment is whether the smallest model works.
 - Agent logs (logback, `simulation_agent/src/main/resources/logback.xml`): the terminal shows INFO, i.e. each tool call with its arguments, the tool result and the final answer; `/tmp/simulation_agent.log` (or `$AGENT_LOG`) gets everything at DEBUG, including the raw MCP and model HTTP traffic, and is overwritten at each run.
 - Agent tasks (`simulation_agent/.../Tasks.scala`): id, goal, starting program and target formation. `circle-control` starts from the correct `CircleFormation`, the `circle-bug-*` tasks from copies with one bug each and the same goal, which does not reveal the bug. Starting programs are `simulation_agent/src/main/resources/tasks/<id>.scala.txt` (the suffix keeps IDE and compiler from treating it as a source). An unknown task, piece or option prints an error with the usage.
@@ -107,22 +108,24 @@ Fields of `evaluation`:
 
 ## Feedback comparison
 
-[`scripts/matrix.sh`](../scripts/matrix.sh) accepts `[dir] [k] [jobs]` and runs the feedback comparison on Flash Lite with `--max-round-trips=20`. A finished matrix is published in `docs/experiments/` with a report, as described in [Experiments](experiments/README.md).
+`./mill exp.matrix [dir]` loads `.env` when present and runs the comparison on Flash Lite with `--max-round-trips=20`. It defaults to `runs/matrix-YYYYMMDD`. Start the MCP server separately for any condition that uses tools, for example with the server jar or Docker. Publish the results under `docs/experiments/` as described in [Experiments](experiments/README.md).
 
-- **Cells**: every task in four cells, `<prompt>-<condition>`: `base-none`, `base-compile`, `base-full` (the full information base for that condition) and `bare-full` (the bare original prompt, no pieces), k times each (default 10).
-- **Parallel runs**: `jobs` runs at a time (default 4: a run mostly waits for the model), repetitions outermost so an interrupted matrix stays balanced.
-- **Build**: mill only builds, at the start. Agent and `Evaluate` run from the launcher and the classpath, because concurrent mill clients in one worktree once made mill run an agent twice in one invocation, so don't run other `./mill` commands in the worktree during a matrix either. With `./mill mcp_server.run` up, mill can't recompile `mcp_server` nor format.
-- **Files**: each run writes its record (`--record`) to `pending/` and, when it ends, the script moves it to `<cell>--<task>--rNN.json`, with the terminal output and the debug log (`AGENT_LOG`) in `logs/`. Rerun the script to resume: it skips the names already there.
+- `--tasks` selects comma-separated IDs from the agent's task registry (default `all`). `--cells` selects comma-separated `<prompt>-<condition>` pairs (defaults `base-none,base-compile,base-full,bare-full`). `base` uses the information base for that condition and `bare` supplies no pieces.
+- `-k` sets the repetitions per task and cell (default 10). `--jobs` limits concurrent agents (default 4). The outer loop schedules repetitions first to keep an interrupted matrix balanced.
+- One Mill command builds the agent and evaluator and launches them as child processes. Keep other Mill clients out of that worktree until the command exits.
+- Each attempt writes under `pending/` and moves its completed record to `<cell>--<task>--rNN.json`. Terminal output and debug logs go under `logs/`. Rerunning the command skips completed filenames.
 - **Errors**: a run that ends in `error` (infrastructure, not the model) goes to `errors/`, out of `Evaluate`'s reach, and is run again in a second and third pass.
-- **Evaluation**: while the runs go on, `Evaluate` judges the records already there, in a loop on 4 threads. When they end, that round is stopped and a last one runs on all threads (`Evaluate` writes each record aside and moves it, so stopping it never truncates one).
-- **Summary**: then `scripts/summary.py <dir>` writes `summary.csv` per task and cell (plus `all`): success from `evaluation.passed`, outcomes, mean round trips, requests, tool calls, tokens and time, totals, and for `base-none` the Olausson baseline `1 - (1 - p)^N`, N the mean requests of `base-full` on the same task. `durationSeconds` of parallel runs includes some contention on the server.
+- During agent runs, `Evaluate` judges arriving records on four threads. The matrix stops that process before starting its final evaluation with the evaluator's default thread count.
+- `./mill exp.summary <dir>` regenerates `summary.csv` per task and cell (plus `all`): success from `evaluation.passed`, outcomes, mean round trips, requests, tool calls, tokens and time, totals, and for `base-none` the Olausson baseline `1 - (1 - p)^N`, N the mean requests of `base-full` on the same task. `durationSeconds` of parallel runs includes some contention on the server.
+- After the final evaluation the matrix also creates `README.md` if absent. It records the design, run and evaluation revisions, per-cell Wilson intervals and the costs of matrix, error and pilot records. Complete the question, cell comparisons, data notes and follow-up analyses by hand.
 
 ## Architecture
 
-[`build.mill`](../build.mill) defines two top-level modules.
+[`build.mill`](../build.mill) defines three top-level modules.
 
 - **`mcp_server`**: MCP server exposing two tools. `ServerMain` → `ScafiMcpServer`, which uses the plain MCP Java SDK 2.x (Jackson 3, mapper from `McpJsonDefaults`) with a Streamable HTTP servlet transport on Jetty. Tool input schemas are JSON files in `resources/schemas/`. `Main.scala` runs the scenario with `CircleFormation` in the Alchemist GUI, slowed down, for debugging. `FormationOracle` holds the circle and slot shape metrics and the acceptance thresholds used by `Evaluate` and `SimulationProbe`, on positions from `ScafiTestUtils.simulate` (the `simulate_code` pipeline without the plot).
 - **`simulation_agent`**: Scala agent on LangChain4j 1.23: an `AiServices` assistant with the server's tools from `McpToolProvider`, which runs the tool loop. No dependency on `mcp_server`. Ollama models can't receive images in tool results (LangChain4j raises `UnsupportedFeatureException`), Gemini can.
+- **`exp`**: runs the feedback matrix, uses the task registry from `simulation_agent` and launches `Evaluate` with the server's own classpath.
 
 The agent and server communicate over Streamable HTTP at `/mcp`. The agent uses `StreamableHttpMcpTransport` and the server uses `HttpServletStreamableServerTransportProvider`. The legacy HTTP SSE transport (`/mcp/sse` + `/mcp/message`) is deprecated by the MCP spec and no longer in recent LangChain4j releases.
 
