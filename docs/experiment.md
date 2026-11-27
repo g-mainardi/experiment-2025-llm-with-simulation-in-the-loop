@@ -18,7 +18,6 @@ docker compose up                         # server via server.Dockerfile
 ./mill simulation_agent.run gemini-3.5-flash-lite circle-control [--pieces=a,b] [--condition=full] [--max-round-trips=20]   # Scala agent; server must already be running
 ./mill mcp_server.runMain it.unibo.llm.mcp.server.Evaluate "$PWD/runs" [--force] [--threads=n]   # judge the final programs of the run records
 scripts/matrix.sh [runs/matrix-<date>] [k] [jobs]   # feedback comparison: tasks x cells x k runs in parallel, Evaluate, summary.csv; server running
-./mill simulation_agent_py.run                   # Python agent (LangChain, Ollama qwen3-vl:2b)
 ```
 
 - Model name starting with `gemini` uses Google AI (needs `GOOGLE_API_KEY`, kept in `.env`); anything else goes to Ollama at `localhost:11434`. Mill doesn't load `.env`: run `set -a; . ./.env; set +a` first, or Gemini answers "Permission denied on the service".
@@ -120,13 +119,12 @@ Fields of `evaluation`:
 
 ## Architecture
 
-The project has three Mill modules defined in [`build.mill`](../build.mill).
+[`build.mill`](../build.mill) defines two top-level modules.
 
 - **`mcp_server`**: MCP server exposing two tools. `ServerMain` → `ScafiMcpServer`, which uses the plain MCP Java SDK 2.x (Jackson 3, mapper from `McpJsonDefaults`) with a Streamable HTTP servlet transport on Jetty. Tool input schemas are JSON files in `resources/schemas/`. `Main.scala` runs the scenario with `CircleFormation` in the Alchemist GUI, slowed down, for debugging. `FormationOracle` holds the circle and slot shape metrics and the acceptance thresholds used by `Evaluate` and `SimulationProbe`, on positions from `ScafiTestUtils.simulate` (the `simulate_code` pipeline without the plot).
 - **`simulation_agent`**: Scala agent on LangChain4j 1.23: an `AiServices` assistant with the server's tools from `McpToolProvider`, which runs the tool loop. No dependency on `mcp_server`. Ollama models can't receive images in tool results (LangChain4j raises `UnsupportedFeatureException`), Gemini can.
-- **`simulation_agent_py`**: Python equivalent using `langchain-mcp-adapters`.
 
-Client and server transports have to match. All three use Streamable HTTP on the single endpoint `/mcp`: `HttpServletStreamableServerTransportProvider` on the server, `StreamableHttpMcpTransport` in the Scala agent, `streamable_http` in the Python one. The legacy HTTP SSE transport (`/mcp/sse` + `/mcp/message`) is deprecated by the MCP spec and no longer in recent LangChain4j releases.
+The agent and server communicate over Streamable HTTP at `/mcp`. The agent uses `StreamableHttpMcpTransport` and the server uses `HttpServletStreamableServerTransportProvider`. The legacy HTTP SSE transport (`/mcp/sse` + `/mcp/message`) is deprecated by the MCP spec and no longer in recent LangChain4j releases.
 
 ### Simulation pipeline
 
