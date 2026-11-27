@@ -15,6 +15,7 @@ paths:
 - Use `val` and immutable collections for new Scala code. Replace `var` accumulators and `while` loops with collection operations such as `map`, `filter` and `foldLeft`. Use tail recursion for state transitions without a direct collection operation.
 - Express decisions as values. Use an `if` expression for a simple condition and pattern matching for distinct cases or nested decisions.
 - Model absence with `Option` and failures the caller can handle with `Either`. Use `map` to transform a value, `flatMap` when the next step can also return `None` or `Left`, and `getOrElse` or `orElse` for fallbacks.
+- In a for-comprehension, a value definition after a generator (`todo = missing()` after `pass <- 1 to 3`) is computed for every element before the body runs, because it desugars to a `map`, which is strict on collections and ranges. Compute what depends on the effects of earlier iterations inside the body.
 - Keep required mutation at API boundaries, for example when populating a Jackson JSON object or updating state owned by Alchemist. Keep the calculations that feed those effects pure.
 
 ### Examples
