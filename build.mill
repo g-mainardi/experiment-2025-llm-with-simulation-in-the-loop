@@ -15,6 +15,9 @@ trait Common extends SbtModule {
   def scalacOptions = Seq(
     "-deprecation", "-encoding", "utf8", "-feature", "-unchecked"
   )
+  // Several dependencies register providers in the same META-INF/services file (e.g. the Scala, Groovy and Kotlin
+  // script engines): keep all their lines in the assembly jar, where Mill otherwise keeps only the first file
+  def assemblyRules = super.assemblyRules :+ Assembly.Rule.AppendPattern("META-INF/services/.*", "\n")
 }
 
 object mcp_server extends Common {
