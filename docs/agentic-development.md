@@ -19,7 +19,7 @@ This repository is developed mostly through coding agents (Claude Code and Codex
 ## Checks
 
 - Git hooks, enabled by any `./mill` run (see [Git hooks](../README.md#git-hooks)): Conventional Commits for every message, scalafmt before a commit that touches Scala, and no deletion of a branch that an open pull request uses.
-- CI ([`ci.yml`](../.github/workflows/ci.yml)): formatting, compilation of all modules, the offline matrix report test, the `SimulationProbe` smoke test, the Docker build and the commit messages, gathered in the `success` check that `master` requires.
+- CI ([`ci.yml`](../.github/workflows/ci.yml)): formatting, compilation of all modules, the offline matrix report test, the `SimulationProbe` smoke test, a program judged by `Evaluate` from the server jar, the Docker build and the commit messages, gathered in the `success` check that `master` requires.
 - Renovate ([`renovate.json`](../renovate.json)) opens the dependency updates, including the versions in `build.mill`.
 - To track adoption of the [Scala style rule](../.claude/rules/scala.md#functional-style), count new uses of `while` and `var` in PR diffs. The command below finds candidate lines. Check each match to exclude comments and strings, and use the PR's base branch in place of `origin/master` for a stacked PR.
 
@@ -34,3 +34,4 @@ Mistakes made by or with the agents, and the rule each one led to.
 - Concurrent `./mill` clients in one worktree once made Mill run an agent twice in one invocation. `./mill exp.matrix` builds once and runs the agent and the evaluator from the classpath, and `AGENTS.md` keeps other Mill calls out of a worktree while the matrix runs.
 - Generated Scala used `while`, `var` and nested `if`/`else` even next to functional code. The [Scala rule](../.claude/rules/scala.md#functional-style) now shows alternatives taken from the project.
 - An agent merged a PR as soon as CI passed. The workflow now requires an explicit instruction from the user before an agent merges a PR.
+- A scenario change left the server jar and the Docker image unable to simulate for two weeks: the jar kept only the first of the `META-INF/services` files its dependencies share and lost the Groovy script engine, while CI simulated only from the Mill classpath. The assembly now merges those files, and CI judges a program from the jar.

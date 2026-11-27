@@ -26,6 +26,17 @@ jobs:
       - run: ./mill exp.test
       - name: Simulation smoke test
         run: ./mill mcp_server.test.runMain it.unibo.llm.mcp.server.SimulationProbe "$PWD/mcp_server/src/main/scala/it/unibo/scafi/CircleFormation.scala"
+      # The server jar (also the one in the Docker image) merges every dependency into one file, which can lose what
+      # the Mill classpath has, such as the Groovy script engine the scenario needs: judge one program from the jar
+      - name: Server jar smoke test
+        run: |
+          ./mill mcp_server.assembly
+          dir="$RUNNER_TEMP/jar-check"
+          mkdir -p "$dir"
+          jq -n --rawfile program mcp_server/src/main/scala/it/unibo/scafi/CircleFormation.scala \
+            '{target: {shape: "circle", radius: 0.6}, finalProgram: $program}' > "$dir/circle-control.json"
+          java -cp out/mcp_server/assembly.dest/out.jar it.unibo.llm.mcp.server.Evaluate "$dir"
+          jq -e '.evaluation.passed' "$dir/circle-control.json"
 
   docker:
     runs-on: ubuntu-latest
