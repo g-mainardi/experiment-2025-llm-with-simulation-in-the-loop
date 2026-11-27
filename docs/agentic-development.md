@@ -21,10 +21,15 @@ This repository is developed mostly through coding agents (Claude Code and Codex
 - Git hooks, enabled by any `./mill` run (see [Git hooks](../README.md#git-hooks)): Conventional Commits for every message, scalafmt before a commit that touches Scala, and no deletion of a branch that an open pull request uses.
 - CI ([`ci.yml`](../.github/workflows/ci.yml)): formatting, compilation of all modules, the `SimulationProbe` smoke test, the Docker build and the commit messages, gathered in the `success` check that `master` requires.
 - Renovate ([`renovate.json`](../renovate.json)) opens the dependency updates, including the versions in `build.mill`.
+- To track adoption of the [Scala style rule](../.claude/rules/scala.md#functional-style), count new uses of `while` and `var` in PR diffs. The command below finds candidate lines. Check each match to exclude comments and strings, and use the PR's base branch in place of `origin/master` for a stacked PR.
+
+```bash
+git diff --no-color --unified=0 origin/master...HEAD -- '*.scala' build.mill | rg '^\+.*\b(while|var)\b'
+```
 
 ## Lessons
 
 Mistakes made by or with the agents, and the rule each one led to.
 
 - Concurrent `./mill` clients in one worktree once made Mill run an agent twice in one invocation. The feedback matrix now builds with Mill once and runs the agent and the evaluator from the classpath, and `AGENTS.md` keeps other Mill calls out of a worktree while the matrix runs.
-- Without explicit instructions, generated Scala drifts toward an imperative style (`while` loops, `var`, nested `if`/`else`) even next to functional code.
+- Generated Scala used `while`, `var` and nested `if`/`else` even next to functional code. The [Scala rule](../.claude/rules/scala.md#functional-style) now shows alternatives taken from the project.

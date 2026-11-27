@@ -13,7 +13,7 @@ Use [README.md](README.md) for setup and CLI usage, and [Experiment internals](d
 
 Before editing or reviewing files, read the rules for every affected path. Claude Code loads them by itself.
 
-- For `**/*.scala` and `build.mill`, read `.claude/rules/scala.md`.
+- For `**/*.scala` and `build.mill`, read the functional style and build rules in `.claude/rules/scala.md`.
 - For `**/*.md`, read `.claude/rules/markdown.md`.
 - For `CLAUDE.md`, `AGENTS.md`, `**/.claude/**`, `.agents/**` and `docs/agentic-development.md`, read `.claude/rules/agent-instructions.md`.
 - For `FormationOracle.scala`, `Evaluate.scala` and `mcp_server/src/test/**`, read `.claude/rules/oracle.md`.
