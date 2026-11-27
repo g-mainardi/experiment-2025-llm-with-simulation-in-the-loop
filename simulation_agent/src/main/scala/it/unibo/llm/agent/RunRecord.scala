@@ -7,6 +7,8 @@ import java.nio.file.Path
 import java.time.Duration
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
+import scala.sys.process._
+import scala.util.Try
 
 /** One JSON file per run in `runs/`, read by the offline evaluation: keep it flat. */
 object RunRecord {
@@ -27,6 +29,14 @@ object RunRecord {
   def lastCodeBlock(answer: String): Option[String] = {
     val blocks = codeBlock.findAllMatchIn(answer).filter(m => Set("", "scala")(m.group(1))).map(_.group(2)).toList
     blocks.findLast(classDefinition.findFirstIn(_).isDefined).orElse(blocks.lastOption)
+  }
+
+  /** The commit checked out in the worktree and whether the worktree has changes git doesn't ignore; None outside a git
+    * checkout or without git. Read from the worktree, not from the build: don't change it while runs go on.
+    */
+  private def codeVersion(): Option[(String, Boolean)] = {
+    def git(args: String*): Option[String] = Try(("git" +: args).!!(ProcessLogger(_ => ())).trim).toOption
+    git("rev-parse", "HEAD").zip(git("status", "--porcelain").map(_.nonEmpty))
   }
 
   /** Writes the record to `path` (default `runs/<start time>-<task>-<model>.json`, unique only to the second: parallel
@@ -60,6 +70,9 @@ object RunRecord {
     pieces.foreach(record.putArray("pieces").add)
     record.put("condition", condition)
     record.put("startedAt", startedAt.toString)
+    val (commit, dirty) = codeVersion().unzip
+    record.put("commit", commit.orNull)
+    record.put("dirty", dirty.map(Boolean.box).orNull)
     record.put("durationSeconds", Duration.between(startedAt, OffsetDateTime.now()).toMillis / 1000.0)
     record.put("outcome", outcome)
     record.put("error", error.orNull)

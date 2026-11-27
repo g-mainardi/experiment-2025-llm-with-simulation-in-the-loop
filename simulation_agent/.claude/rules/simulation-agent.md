@@ -12,4 +12,4 @@ How it works: [Running the experiment](../../../docs/experiment.md#running-the-e
 
 ## State
 
-Tasks `circle-control` and `circle-bug-half`, `circle-bug-maxby`, `circle-bug-absolute`, all with the circle goal. Prompt from pieces, feedback conditions `none`, `compile` and `full`, a limit on tool-call round trips, retries on Gemini rate limits and overload, one JSON record per run. Missing: targets other than the circle, and a condition with `simulate_code` only.
+Tasks `circle-control` and `circle-bug-half`, `circle-bug-maxby`, `circle-bug-absolute`, all with the circle goal. Prompt from pieces, feedback conditions `none`, `compile` and `full`, a limit on tool-call round trips, retries on Gemini rate limits and overload, one JSON record per run with the commit it ran from. Missing: targets other than the circle, and a condition with `simulate_code` only.

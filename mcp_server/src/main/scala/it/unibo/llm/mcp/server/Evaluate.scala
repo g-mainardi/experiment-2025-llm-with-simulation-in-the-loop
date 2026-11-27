@@ -13,6 +13,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import scala.collection.mutable
 import scala.jdk.StreamConverters._
+import scala.sys.process._
+import scala.util.Try
 import scala.util.control.NonFatal
 
 /** Judges the final program of each agent run record with `FormationOracle` and writes the result in the record as
@@ -32,6 +34,13 @@ import scala.util.control.NonFatal
 object Evaluate {
 
   private val json = JsonMapper.builder().build()
+
+  // The code that judges, as in the agent's RunRecord (the two modules don't depend on each other): the commit checked
+  // out in the worktree and whether it has changes git doesn't ignore, None outside a git checkout
+  private val (commit, dirty) = {
+    def git(args: String*): Option[String] = Try(("git" +: args).!!(ProcessLogger(_ => ())).trim).toOption
+    git("rev-parse", "HEAD").zip(git("status", "--porcelain").map(_.nonEmpty)).unzip
+  }
 
   private val defaultRadius = utils.ScafiTestUtils.variables("radius").getDefault.toString.toDouble
 
@@ -119,6 +128,8 @@ object Evaluate {
     evaluation.putNull("reason")
     val slots = FormationOracle.SlotShapes.contains(key.shape)
     evaluation.put(if (slots) "spacing" else "radius", key.size)
+    evaluation.put("commit", commit.orNull)
+    evaluation.put("dirty", dirty.map(Boolean.box).orNull)
     val criterion = evaluation.putObject("criterion")
     if (slots) criterion.put("maxHausdorff", FormationOracle.HausdorffTolerance * key.size)
     else {
