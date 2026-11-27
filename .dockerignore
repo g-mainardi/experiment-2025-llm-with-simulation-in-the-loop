@@ -11,8 +11,9 @@ out/
 .git/
 .gitignore
 
-# Simulation agent (not needed for server)
+# Simulation agent and matrix harness (not needed for server)
 simulation_agent/
+exp/
 
 # Docker files
 *.Dockerfile

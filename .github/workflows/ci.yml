@@ -23,6 +23,7 @@ jobs:
           key: mill-${{ hashFiles('build.mill', '.mill-version') }}
       - run: ./mill mill.scalalib.scalafmt/checkFormatAll
       - run: ./mill __.compile
+      - run: ./mill exp.test
       - name: Simulation smoke test
         run: ./mill mcp_server.test.runMain it.unibo.llm.mcp.server.SimulationProbe "$PWD/mcp_server/src/main/scala/it/unibo/scafi/CircleFormation.scala"
 

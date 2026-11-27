@@ -68,3 +68,31 @@ object simulation_agent extends Common {
   def mainClass = Some("it.unibo.llm.agent.Main")
   def prependShellScript = ""
 }
+
+object exp extends Common {
+  def moduleDeps = Seq(simulation_agent)
+  def mainClass = Some("it.unibo.llm.exp.Matrix")
+
+  def matrix(
+      @mainargs.arg(positional = true) dir: String = "runs/matrix-" + java.time.LocalDate.now.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE),
+      k: Int = 10, jobs: Int = 4, tasks: String = "all", cells: String = "base-none,base-compile,base-full,bare-full"
+  ) = Task.Command(exclusive = true) {
+    val evaluatorClasspath = mcp_server.runClasspath().map(_.path).mkString(java.io.File.pathSeparator)
+    // Keep the same shell syntax for .env as the agent setup, and keep credentials out of Mill's task outputs.
+    os.proc("bash", "-eac", "if [[ -f .env ]]; then source ./.env; fi; exec \"$@\"",
+      "exp.matrix", launcher().path, simulation_agent.launcher().path, evaluatorClasspath, dir, k.toString,
+      jobs.toString, tasks, cells).call(
+      cwd = mill.api.BuildCtx.workspaceRoot,
+      env = Task.env,
+      stdout = os.Inherit,
+      stderr = os.Inherit
+    )
+    ()
+  }
+
+  def summary(@mainargs.arg(positional = true) dir: String) = Task.Command {
+    runner().run(args = Seq(dir), mainClass = "it.unibo.llm.exp.Summary", workingDir = forkWorkingDir())
+  }
+
+  object test extends SbtTests with scalalib.TestModule.Junit4
+}
