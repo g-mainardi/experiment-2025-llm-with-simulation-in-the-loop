@@ -14,7 +14,7 @@ This repository is developed mostly through coding agents (Claude Code and Codex
 - A larger change is planned first as a sequence of steps, each one branch and one pull request.
 - Each step runs in its own worktree (`scripts/new-worktree.sh <type>/<task>`), with one agent session per worktree, so parallel sessions never share a working tree or `git stash`. The step's spec sits in an unversioned `plan.md` at the worktree root.
 - Steps that build on each other become stacked pull requests: each targets the branch below it and moves to `master` when that one is merged.
-- `scripts/ff-merge.sh` merges a pull request by fast-forwarding `master` onto it, which keeps the commit signatures that GitHub's rebase merge drops. `scripts/remove-worktree.sh` removes the worktree and the branch.
+- The maintainer merges pull requests. An agent can merge a specific pull request at the user's explicit request. After the `success` check passes, `scripts/ff-merge.sh` fast-forwards the base to the branch head and preserves commit signatures. `scripts/remove-worktree.sh` removes the merged worktree and branch.
 
 ## Checks
 
@@ -33,3 +33,4 @@ Mistakes made by or with the agents, and the rule each one led to.
 
 - Concurrent `./mill` clients in one worktree once made Mill run an agent twice in one invocation. The feedback matrix now builds with Mill once and runs the agent and the evaluator from the classpath, and `AGENTS.md` keeps other Mill calls out of a worktree while the matrix runs.
 - Generated Scala used `while`, `var` and nested `if`/`else` even next to functional code. The [Scala rule](../.claude/rules/scala.md#functional-style) now shows alternatives taken from the project.
+- An agent merged a PR as soon as CI passed. The workflow now requires an explicit instruction from the user before an agent merges a PR.

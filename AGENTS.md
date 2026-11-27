@@ -23,8 +23,9 @@ Before editing or reviewing files, read the rules for every affected path. Claud
 ## Workflow
 
 - Use `scripts/new-worktree.sh <type>/<task>` to create a separate worktree from `origin/master`. Keep each parallel session in its own worktree and avoid `git stash`, which is shared across worktrees.
-- Target `master` on the `g-mainardi` fork for PRs. Treat `upstream` as read-only. Base dependent PRs on the branches they build on.
-- Use Conventional Commits. Run `scripts/ff-merge.sh [branch]` from the branch worktree after the `success` check passes to merge while preserving commit signatures.
+- Open a PR targeting `master` on the `g-mainardi` fork. Treat `upstream` as read-only. Base dependent PRs on the branches they build on.
+- Use Conventional Commits. Leave the PR open for the maintainer. An agent may merge a PR only when the user explicitly asks it to merge that PR.
+- For an authorized merge, wait for the `success` check to pass and run `scripts/ff-merge.sh [branch]` from the branch worktree to preserve commit signatures.
 - Use `scripts/remove-worktree.sh <type>/<task>` to clean up a merged worktree.
 - Record formatting-only commits in `.git-blame-ignore-revs` using the SHA they get on `master`.
 - Report bugs and technical issues through GitHub Issues.

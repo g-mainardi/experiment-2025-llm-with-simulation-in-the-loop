@@ -65,7 +65,7 @@ See [Experiment internals](docs/experiment.md) for the simulation pipeline and i
 
 ## Contributing
 
-Branch from `master` and open a pull request: `master` only accepts PRs with a green CI, merged with rebase or squash.
+Use a separate branch and worktree for each task, then open a pull request. The [contribution workflow](docs/agentic-development.md#from-plan-to-pull-request) describes who can merge it and how to preserve commit signatures.
 
 ### Git hooks
 
