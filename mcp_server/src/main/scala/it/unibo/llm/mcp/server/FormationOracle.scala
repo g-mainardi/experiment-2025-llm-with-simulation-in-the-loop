@@ -15,7 +15,9 @@ import scala.concurrent.duration._
   */
 object FormationOracle {
 
-  /** The node the scenario elects as leader (it doesn't move): the circle is centred on it. */
+  /** The node the scenario elects as leader (it doesn't move): the circle is centred on it and slot shapes are
+    * positioned relative to it.
+    */
   val LeaderId = "1"
 
   /** Max radial RMSE of the followers, as a fraction of the target radius. */
@@ -80,7 +82,8 @@ object FormationOracle {
   /** A slot shape judged on a whole run: worst Hausdorff distance and min distance in the steady state, and the first
     * time from which the Hausdorff distance stays within the tolerance. Over the whole run the reference line comes as
     * close as 0.088 (and the V 0.146) while the robots cross on their way to the slots, a transient that comes from the
-    * repulsion in ShapeFormation, not from the shape; in the steady state the references stay at 0.29 or more.
+    * repulsion in ShapeFormation, not from the shape; in the steady state the references stay at 0.27 or more (0.23 or
+    * more across rotated variants).
     */
   final case class Slots(
       end: Double,

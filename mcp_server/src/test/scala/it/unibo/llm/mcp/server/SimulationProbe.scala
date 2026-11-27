@@ -135,7 +135,6 @@ object SimulationProbe {
     source.replace(from, to)
   }
 
-  /** Prints the oracle metrics of `program` with the default radius; returns whether it passed. */
   /** Simulates `program` once and judges it against every slot shape and the circle: it must pass exactly `own`.
     * Returns whether it did.
     */
@@ -159,6 +158,7 @@ object SimulationProbe {
     }
   }
 
+  /** Prints the oracle metrics of `program` with the default radius; returns whether it passed. */
   private def circleMetrics(label: String, program: String): Boolean = {
     println(s"-- $label")
     FormationOracle.evaluate(program, Radius, ProbeSeed) match {
