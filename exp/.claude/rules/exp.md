@@ -4,7 +4,7 @@ See [Feedback comparison](../../../docs/experiment.md#feedback-comparison) for s
 
 - Keep each run in its own agent process. The evaluator reads only completed records. Preserve filenames, CSV columns and compatibility with older records when changing the matrix.
 - Keep other Mill calls and code changes out of a running matrix's worktree. Records take their revision from the working tree. Use the server jar, Docker or a separate worktree for the MCP server.
-- Run `./mill exp.test` for the offline report checks. Compare changes to the summary against an existing matrix in a copy of its directory.
+- Run `./mill exp.test` for the offline checks of the retry passes and the report. Compare changes to the summary against an existing matrix in a copy of its directory.
 
 ## State
 

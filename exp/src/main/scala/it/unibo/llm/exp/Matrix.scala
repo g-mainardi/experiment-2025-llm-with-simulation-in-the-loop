@@ -82,6 +82,16 @@ object Matrix {
     else System.err.println(s"!! ${run.name}: see $log.log")
   }
 
+  /** Up to three passes over the runs still missing, read again before each pass, once the previous one has finished:
+    * later passes retry only the runs without a record. (In a for-comprehension, `todo = missing()` after `pass <- 1 to
+    * 3` would be computed for all three passes before the first one.)
+    */
+  private[exp] def passes[A](missing: () => Seq[A])(run: (Int, Seq[A]) => Unit): Unit =
+    (1 to 3).foreach { pass =>
+      val todo = missing()
+      if (todo.nonEmpty) run(pass, todo)
+    }
+
   def main(args: Array[String]): Unit = {
     val Array(agent, classpath, directory, repetitions, parallelism, taskNames, cellNames) = args: @unchecked
     val dir                                                                                = Path.of(directory).toAbsolutePath.normalize()
@@ -129,10 +139,7 @@ object Matrix {
               30,
               TimeUnit.SECONDS
             )
-            for {
-              pass <- 1 to 3
-              todo  = missing if todo.nonEmpty
-            } {
+            passes(() => missing) { (pass, todo) =>
               println(s"-- pass $pass: ${todo.size} runs")
               pool
                 .invokeAll(todo.map(run => (() => runOne(agent, dir, run)): Callable[Unit]).asJava)
