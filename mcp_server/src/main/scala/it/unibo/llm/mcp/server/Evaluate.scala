@@ -11,7 +11,6 @@ import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
-import scala.collection.mutable
 import scala.jdk.StreamConverters._
 import scala.sys.process._
 import scala.util.Try
@@ -83,19 +82,15 @@ object Evaluate {
       Executors.newFixedThreadPool(threads.flatten.getOrElse((Runtime.getRuntime.availableProcessors / 2).max(1)))
     try {
       // Every distinct program is submitted at once, so the pool stays busy while the records are written in order
-      val jobs = mutable.LinkedHashMap.empty[Key, () => JsonNode]
-      val keys = pending.map { case (file, record) =>
-        val key = keyOf(record, file, quiet = false)
-        if (!known.contains(key)) jobs.getOrElseUpdate(key, submit(key, pool))
-        key
-      }
-      val firstFile = mutable.Map.empty[Key, Path]
-      for (((file, record), key) <- pending.zip(keys)) {
+      val keyed = pending.map { case (file, record) => (file, record, keyOf(record, file, quiet = false)) }
+      val jobs  = keyed.map(_._3).distinct.filterNot(known.contains).map(key => key -> submit(key, pool)).toMap
+      // The first record of each program in the dir: the next ones say they share its evaluation
+      val firstFile = keyed.groupMapReduce(_._3)(_._1)((first, _) => first)
+      keyed.foreach { case (file, record, key) =>
         val (evaluation, origin) = known.get(key) match {
           case Some((from, evaluation)) => (evaluation, Some(from))
-          case None                     => (jobs(key)(), firstFile.get(key))
+          case None                     => (jobs(key)(), firstFile.get(key).filterNot(_ == file))
         }
-        firstFile.getOrElseUpdate(key, file)
         record.set("evaluation", evaluation.deepCopy())
         // Written aside and moved: an evaluation stopped halfway (the matrix runs it in a loop) never truncates a record
         val partial = file.resolveSibling(s"${file.getFileName}.partial")

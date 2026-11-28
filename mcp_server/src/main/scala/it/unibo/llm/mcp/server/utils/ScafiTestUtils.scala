@@ -125,22 +125,35 @@ object ScafiTestUtils {
       case (name, value: Number) => !variables.get(name).exists(isAllowed(_, value.doubleValue))
       case _                     => true
     }
-    if (invalid.nonEmpty)
-      return Left(List(s"Invalid parameters: ${invalid.mkString(", ")}. Scenario variables:\n$variablesDescription"))
     val overrides = parameters.collect { case (name, value: Number) => name -> value.doubleValue }
-
-    val tempDir = Files.createTempDirectory("scafi-simulate-")
-
-    val packageRegex = """(?m)^\s*package\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)""".r
-
     // Same offsets as program, so the package matches still point at the right place in it
-    val blanked   = blankCommentsAndStrings(program)
-    val packages  = packageRegex.findAllMatchIn(blanked).toList
-    val className = mainClassName(blanked) match {
-      case Some(name) => name
-      case None       =>
-        return Left(List("Simulation error: Could not find class definition in the provided code:\n\n" + program))
-    }
+    val blanked = blankCommentsAndStrings(program)
+    for {
+      _ <- Either.cond(
+             invalid.isEmpty,
+             (),
+             List(s"Invalid parameters: ${invalid.mkString(", ")}. Scenario variables:\n$variablesDescription")
+           )
+      className <-
+        mainClassName(blanked)
+          .toRight(List("Simulation error: Could not find class definition in the provided code:\n\n" + program))
+      tempDir   = Files.createTempDirectory("scafi-simulate-")
+      fqnClass <- compileInOwnPackage(program, blanked, className, tempDir)
+    } yield run(fqnClass, tempDir, timeout, overrides, yaml)
+  }
+
+  private val packageRegex = """(?m)^\s*package\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)""".r
+
+  /** Compiles `program` (`blanked` is the same with comments and literals blanked out) into `outDir`, in a package of
+    * its own. Right holds the fully qualified name of `className`, Left the compilation errors.
+    */
+  private def compileInOwnPackage(
+      program: String,
+      blanked: String,
+      className: String,
+      outDir: Path
+  ): Either[List[String], String] = {
+    val packages = packageRegex.findAllMatchIn(blanked).toList
     // Chained package clause: classes of the outer packages (e.g. ShapeFormation) stay visible.
     // It goes on the same line as the last clause, so error line numbers still match the submitted program.
     val runPackage    = s"run${runCounter.incrementAndGet()}"
@@ -148,20 +161,29 @@ object ScafiTestUtils {
       case Some(last) => program.patch(last.end, s"; package $runPackage", 0)
       case None       => s"package $runPackage; $program"
     }
-    val fqnClass = (packages.map(_.group(1)) :+ runPackage :+ className).mkString(".")
+    compile(uniqueProgram, outDir) match {
+      case (true, errors) => Left(errors)
+      case _              => Right((packages.map(_.group(1)) :+ runPackage :+ className).mkString("."))
+    }
+  }
 
-    val (hasErrors, errors) = compile(uniqueProgram, tempDir)
-    if (hasErrors) return Left(errors)
-
+  /** Simulates `fqnClass`, compiled into `classDir`, with the scenario `overrides` and the YAML fragments `yaml`. */
+  private def run(
+      fqnClass: String,
+      classDir: Path,
+      timeout: Duration,
+      overrides: Map[String, Double],
+      yaml: List[String]
+  ): Trace = {
     // RunScafiProgram loads the program through ResourceLoader (one classloader per thread), not through the
     // context classloader. A fresh loader per simulation, closed at the end: classes of earlier simulations
     // don't stay reachable and memory doesn't grow with every call.
-    ResourceLoader.setURLs(tempDir.toUri.toURL)
+    ResourceLoader.setURLs(classDir.toUri.toURL)
     try {
       ResourceLoader.classForName(fqnClass)
       logger.info(s"Simulating $fqnClass")
 
-      val exportDir  = tempDir.resolve("export")
+      val exportDir  = classDir.resolve("export")
       val simulation = loadScenario(fqnClass, exportDir, yaml).getWith(overrides.asJava)
       // run() stays on this thread: RunScafiProgram resolves the program through this thread's ResourceLoader
       val timedOut = new AtomicBoolean()
@@ -184,7 +206,7 @@ object ScafiTestUtils {
         s"Simulation stopped by the ${timeout.toSeconds} s timeout at time ${simulation.getTime.getCurrent}: " +
           "the plot shows the run up to there"
       )
-      Right(Trace(positions, simulation.getError.isSome, errors ++ stopped, exportDir))
+      Trace(positions, simulation.getError.isSome, errors ++ stopped, exportDir)
     } finally {
       ResourceLoader.getClassLoader.asInstanceOf[URLClassLoader].close()
       ResourceLoader.setDefault()
