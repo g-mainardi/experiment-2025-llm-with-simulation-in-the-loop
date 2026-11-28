@@ -244,9 +244,12 @@ object ScafiTestUtils {
     @tailrec
     def blockCommentEnd(j: Int, depth: Int): Int =
       if (j >= code.length || depth == 0) j
-      else if (code.startsWith("/*", j)) blockCommentEnd(j + 2, depth + 1)
-      else if (code.startsWith("*/", j)) blockCommentEnd(j + 2, depth - 1)
-      else blockCommentEnd(j + 1, depth)
+      else
+        code.slice(j, j + 2) match {
+          case "/*" => blockCommentEnd(j + 2, depth + 1)
+          case "*/" => blockCommentEnd(j + 2, depth - 1)
+          case _    => blockCommentEnd(j + 1, depth)
+        }
 
     @tailrec
     def stringEnd(j: Int): Int =
@@ -263,23 +266,16 @@ object ScafiTestUtils {
     def extraQuotesEnd(j: Int): Int =
       if (j < code.length && code(j) == '"') extraQuotesEnd(j + 1) else j
 
-    def literalOrCommentEnd(i: Int): Option[Int] =
-      if (code.startsWith("//", i))
-        Some(Some(code.indexOf('\n', i)).filter(_ >= 0).getOrElse(code.length))
-      else if (code.startsWith("/*", i))
-        // Scala block comments nest
-        Some(blockCommentEnd(i + 2, 1))
-      else if (code.startsWith("\"\"\"", i))
-        Some(
-          Some(code.indexOf("\"\"\"", i + 3))
-            .filter(_ >= 0)
-            .fold(code.length)(k => extraQuotesEnd(k + 3))
-        )
-      else if (code(i) == '"')
-        Some(stringEnd(i + 1))
-      else if (code(i) == '\'')
-        charLiteralRegex.findPrefixMatchOf(code.substring(i, (i + 8).min(code.length))).map(i + _.end)
-      else None
+    def literalOrCommentEnd(i: Int): Option[Int] = code(i) match {
+      case '/' if code.startsWith("//", i) => Some(Some(code.indexOf('\n', i)).filter(_ >= 0).getOrElse(code.length))
+      // Scala block comments nest
+      case '/' if code.startsWith("/*", i)     => Some(blockCommentEnd(i + 2, 1))
+      case '"' if code.startsWith("\"\"\"", i) =>
+        Some(Some(code.indexOf("\"\"\"", i + 3)).filter(_ >= 0).fold(code.length)(k => extraQuotesEnd(k + 3)))
+      case '"'  => Some(stringEnd(i + 1))
+      case '\'' => charLiteralRegex.findPrefixMatchOf(code.substring(i, (i + 8).min(code.length))).map(i + _.end)
+      case _    => None
+    }
 
     @tailrec
     def scan(i: Int, plainFrom: Int, parts: List[String]): String =

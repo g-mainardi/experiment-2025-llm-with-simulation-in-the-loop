@@ -15,7 +15,7 @@ import reactor.core.publisher.Mono
 import scala.concurrent.duration.Duration
 import scala.io.Source
 import scala.jdk.CollectionConverters._
-import scala.util.Try
+import scala.util.control.Exception.catching
 import scala.util.control.NonFatal
 
 class ScafiMcpServer {
@@ -81,7 +81,7 @@ class ScafiMcpServer {
     val timeout    = Option(request.arguments().get("timeout")).getOrElse(60).toString
     val parameters = Option(request.arguments().get("parameters"))
       .fold(Map.empty[String, Any])(_.asInstanceOf[java.util.Map[String, Any]].asScala.toMap)
-    Mono.just(Try(Duration(s"${timeout}s")).toOption match {
+    Mono.just(catching(classOf[NumberFormatException]).opt(Duration(s"${timeout}s")) match {
       case Some(duration) => simulationResult(program, duration, parameters)
       case None           => textResult(s"Invalid timeout format: $timeout", isError = true)
     })
