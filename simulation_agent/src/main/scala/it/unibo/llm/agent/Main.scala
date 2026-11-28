@@ -54,15 +54,13 @@ object Main {
       "Starting simulation agent with model {} on task {}, condition {}, prompt pieces {}, at most {} round trips",
       modelName, taskId, condition, pieces.mkString(","), maxRoundTrips
     )
-    val gemini = modelName.toLowerCase.startsWith("gemini")
+    val gemini                  = modelName.toLowerCase.startsWith("gemini")
+    val logRequestsAndResponses = true
     // Gemini 3.5 Flash-Lite and later ignore temperature, top_p and top_k, and Google asks to stop sending them
     // (later generations will answer 400): the record says null, the model's own sampling
-    val temperature             = Option.when(!gemini)(0.0)
-    val logRequestsAndResponses = true
-    // Ollama goes through RetryingChatModel too, which counts requests and tokens for the run record
-    val model = new RetryingChatModel(
+    val (temperature, chatModel) =
       if (gemini)
-        GoogleAiGeminiChatModel
+        None -> GoogleAiGeminiChatModel
           .builder()
           .apiKey(System.getenv("GOOGLE_API_KEY"))
           .modelName(modelName)
@@ -73,15 +71,16 @@ object Main {
           .logRequestsAndResponses(logRequestsAndResponses)
           .build()
       else
-        OllamaChatModel
+        Some(0.0) -> OllamaChatModel
           .builder()
-          .temperature(temperature.get)
+          .temperature(0.0)
           .logRequests(logRequestsAndResponses)
           .logResponses(logRequestsAndResponses)
           .modelName(modelName)
           .baseUrl("http://localhost:11434")
           .build()
-    )
+    // Ollama goes through RetryingChatModel too, which counts requests and tokens for the run record
+    val model                      = new RetryingChatModel(chatModel)
     val task                       = new AgentTask(model, agentTask.fullPrompt(pieces, condition), condition, maxRoundTrips)
     val startedAt                  = OffsetDateTime.now()
     val (outcome, answer, failure) =
@@ -110,11 +109,11 @@ object Main {
       outcome,
       failure,
       answer,
-      task.calls.toSeq,
-      model,
+      task.calls,
+      model.cost,
       options.get("record").map(java.nio.file.Path.of(_))
     )
-    logger.info("Run record: {} ({} model requests)", record, model.requests)
+    logger.info("Run record: {} ({} model requests)", record, model.cost.requests)
     if (outcome == "error") sys.exit(1)
   }
 

@@ -17,7 +17,6 @@ import dev.langchain4j.service.tool.ToolProvider
 
 import java.util.{List => JList}
 import java.util.{Map => JMap}
-import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters._
 
 trait Assistant {
@@ -58,8 +57,11 @@ class AgentTask(model: ChatModel, prompt: String, condition: String, maxRoundTri
 
   private val json = new ObjectMapper()
 
-  /** Tool calls of the run, in order: the hooks fill it, so it is there also when the run ends with an exception. */
-  val calls: ArrayBuffer[ToolCall] = ArrayBuffer.empty
+  // Filled by the hooks of the tool loop, so the calls are there also when the run ends with an exception
+  private var recorded = Vector.empty[ToolCall]
+
+  /** Tool calls of the run so far, in order. */
+  def calls: Vector[ToolCall] = recorded
 
   // The MCP client connects when built: built here, a server that is down fails the run, not the task's creation
   def execute(): String = if (condition == "none") assistant(None).chat(prompt)
@@ -93,7 +95,7 @@ class AgentTask(model: ChatModel, prompt: String, condition: String, maxRoundTri
     .toolExecutionErrorHandler(ToolExecutionErrorHandler.failInvocationUnlessVisibleToLlm())
     .beforeToolExecution { e =>
       val arguments = json.readTree(e.request().arguments())
-      calls += ToolCall(e.request().name(), arguments, failed = false)
+      recorded = recorded :+ ToolCall(e.request().name(), arguments, failed = false)
       // Arguments are JSON with escaped newlines: print each one as plain text, so the code is readable
       val args = arguments.properties().asScala.map { entry =>
         s"\n--- ${entry.getKey}:\n${entry.getValue.asText()}"
@@ -102,7 +104,7 @@ class AgentTask(model: ChatModel, prompt: String, condition: String, maxRoundTri
     }
     .afterToolExecution { e =>
       // Tools run one at a time: this is the call the last beforeToolExecution added
-      calls(calls.length - 1) = calls.last.copy(failed = e.hasFailed)
+      recorded = recorded.init :+ recorded.last.copy(failed = e.hasFailed)
       val result = e.resultContents().asScala.map {
         case text: TextContent   => text.text()
         case image: ImageContent => s"<${image.image().mimeType()} image>"

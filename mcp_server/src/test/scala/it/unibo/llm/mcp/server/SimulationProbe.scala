@@ -114,15 +114,14 @@ object SimulationProbe {
   private def viaTool(label: String, program: String, png: Path, parameters: Map[String, Any] = Map.empty): String = {
     println(s"-- $label")
     try {
-      val (ms, (failed, errors, image)) =
-        time(ScafiTestUtils.simulateProgram(program, 60.seconds, parameters))
-      if (failed) { println(s"error returned by the tool ($ms ms):\n  ${errors.mkString("\n  ")}"); "" }
-      else {
-        val bytes = Base64.getDecoder.decode(image.get)
-        Files.write(png, bytes)
-        val sha = MessageDigest.getInstance("SHA-256").digest(bytes).map("%02x".format(_)).mkString
-        println(s"ok in $ms ms, PNG saved to ${png.getFileName}, SHA-256 $sha")
-        sha
+      time(ScafiTestUtils.simulateProgram(program, 60.seconds, parameters)) match {
+        case (ms, (false, _, Some(image))) =>
+          val bytes = Base64.getDecoder.decode(image)
+          Files.write(png, bytes)
+          val sha = MessageDigest.getInstance("SHA-256").digest(bytes).map("%02x".format(_)).mkString
+          println(s"ok in $ms ms, PNG saved to ${png.getFileName}, SHA-256 $sha")
+          sha
+        case (ms, (_, errors, _)) => println(s"error returned by the tool ($ms ms):\n  ${errors.mkString("\n  ")}"); ""
       }
     } catch {
       case e: Exception => println(s"exception from the tool: ${e.toString.linesIterator.next()}"); ""

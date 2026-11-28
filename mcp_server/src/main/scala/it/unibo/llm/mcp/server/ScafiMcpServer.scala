@@ -15,6 +15,7 @@ import reactor.core.publisher.Mono
 import scala.concurrent.duration.Duration
 import scala.io.Source
 import scala.jdk.CollectionConverters._
+import scala.util.control.Exception.catching
 import scala.util.control.NonFatal
 
 class ScafiMcpServer {
@@ -77,34 +78,33 @@ class ScafiMcpServer {
   private def handleSimulation(server: McpAsyncServerExchange, request: CallToolRequest): Mono[CallToolResult] = {
     val program = request.arguments().get("program").toString
     // Optional in the schema: clients don't have to send the default
-    val timeout         = Option(request.arguments().get("timeout")).getOrElse(60).toString
-    val durationTimeout =
-      try Duration(s"${timeout}s")
-      catch {
-        case _: NumberFormatException =>
-          return Mono.just(textResult(s"Invalid timeout format: $timeout", isError = true))
-      }
-
+    val timeout    = Option(request.arguments().get("timeout")).getOrElse(60).toString
     val parameters = Option(request.arguments().get("parameters"))
       .fold(Map.empty[String, Any])(_.asInstanceOf[java.util.Map[String, Any]].asScala.toMap)
+    Mono.just(catching(classOf[NumberFormatException]).opt(Duration(s"${timeout}s")) match {
+      case Some(duration) => simulationResult(program, duration, parameters)
+      case None           => textResult(s"Invalid timeout format: $timeout", isError = true)
+    })
+  }
 
+  private def simulationResult(program: String, timeout: Duration, parameters: Map[String, Any]): CallToolResult = {
     // Any failure goes back as a tool error the model can read, not as a protocol error
-    val (hasErrors, errors, imageBase64) =
-      try ScafiTestUtils.simulateProgram(program, durationTimeout, parameters)
+    val outcome =
+      try ScafiTestUtils.simulateProgram(program, timeout, parameters)
       catch {
         case NonFatal(e) =>
           logger.warn("Simulation failed", e)
           (true, List(s"Simulation error: $e"), None)
       }
-    if (hasErrors) {
-      Mono.just(textResult(errors.mkString("\n"), isError = true))
-    } else {
-      val annotations = Annotations.builder().audience(List(Role.USER).asJava).priority(1.0).build()
-      val image       = ImageContent.builder(imageBase64.get, "image/png").annotations(annotations).build()
-      // Notes that don't make the run fail, e.g. a timeout
-      val builder = CallToolResult.builder().addContent(image).isError(false)
-      errors.foreach(builder.addTextContent)
-      Mono.just(builder.build())
+    outcome match {
+      case (false, notes, Some(png)) =>
+        val annotations = Annotations.builder().audience(List(Role.USER).asJava).priority(1.0).build()
+        val image       = ImageContent.builder(png, "image/png").annotations(annotations).build()
+        // Notes that don't make the run fail, e.g. a timeout
+        val builder = CallToolResult.builder().addContent(image).isError(false)
+        notes.foreach(builder.addTextContent)
+        builder.build()
+      case (_, errors, _) => textResult(errors.mkString("\n"), isError = true)
     }
   }
 
