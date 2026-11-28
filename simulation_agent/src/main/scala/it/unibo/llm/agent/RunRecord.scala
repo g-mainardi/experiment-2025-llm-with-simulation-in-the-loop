@@ -54,7 +54,7 @@ object RunRecord {
       error: Option[String],
       answer: Option[String],
       calls: Seq[ToolCall],
-      cost: RetryingChatModel,
+      cost: RetryingChatModel.Cost,
       path: Option[Path]
   ): Path = {
     val record = json.createObjectNode()

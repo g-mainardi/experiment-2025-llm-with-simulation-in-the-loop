@@ -19,22 +19,20 @@ import scala.util.Try
   * call keeps the tool loop where it is, while retrying the whole task would restart the conversation from scratch. A
   * timeout is retried only maxTimeoutRetries times: a model that did not answer in 60 s rarely answers later.
   *
-  * It also counts what a run costs: requests sent to the model (retries included, the unit of the Gemini quota), how
-  * many of them were retries, and the tokens of the answered ones. The counts are kept when the run fails.
+  * It also counts what the run costs (see `Cost`); the counts are kept when the run fails.
   */
 class RetryingChatModel(model: ChatModel, maxRetries: Int = 5, maxTimeoutRetries: Int = 1) extends ChatModel {
 
+  import RetryingChatModel.Cost
   import RetryingChatModel.geminiError
 
   private val logger = org.slf4j.LoggerFactory.getLogger("RetryingChatModel")
 
-  var requests: Int = 0
+  // The tool loop calls the model one request at a time and the caller reads the cost when the run ends
+  private var spent = Cost()
 
-  var retries: Int = 0
-
-  var inputTokens: Long = 0
-
-  var outputTokens: Long = 0
+  /** What the run has cost so far. */
+  def cost: Cost = spent
 
   override def doChat(request: ChatRequest): ChatResponse = send(request, retry = 0)
 
@@ -47,12 +45,14 @@ class RetryingChatModel(model: ChatModel, maxRetries: Int = 5, maxTimeoutRetries
   private def send(request: ChatRequest, retry: Int): ChatResponse = {
     // Without it the terminal stays silent while the model thinks, which looks like a hang
     logger.info("Waiting for {}...", request.modelName())
-    requests += 1
+    spent = spent.copy(requests = spent.requests + 1)
     try {
       val response = model.chat(request)
       Option(response.tokenUsage()).foreach { usage =>
-        inputTokens  += Option(usage.inputTokenCount()).fold(0)(_.toInt)
-        outputTokens += Option(usage.outputTokenCount()).fold(0)(_.toInt)
+        spent = spent.copy(
+          inputTokens = spent.inputTokens + Option(usage.inputTokenCount()).fold(0)(_.toInt),
+          outputTokens = spent.outputTokens + Option(usage.outputTokenCount()).fold(0)(_.toInt)
+        )
       }
       response
     } catch {
@@ -61,7 +61,7 @@ class RetryingChatModel(model: ChatModel, maxRetries: Int = 5, maxTimeoutRetries
         val status = geminiError(e).map(_.path("status").asText()).getOrElse(e.getClass.getSimpleName)
         logger.warn("Model call failed with {}, retrying in {}s ({}/{})", status, delay, retry + 1, retryLimit(e))
         Thread.sleep(delay * 1000L)
-        retries += 1
+        spent = spent.copy(retries = spent.retries + 1)
         send(request, retry + 1)
     }
   }
@@ -88,6 +88,11 @@ class RetryingChatModel(model: ChatModel, maxRetries: Int = 5, maxTimeoutRetries
 }
 
 object RetryingChatModel {
+
+  /** Requests sent to the model (retries included, the unit of the Gemini quota), how many of them were retries, and
+    * the tokens of the answered ones.
+    */
+  final case class Cost(requests: Int = 0, retries: Int = 0, inputTokens: Long = 0, outputTokens: Long = 0)
 
   private val json = new ObjectMapper()
 
